@@ -25,7 +25,7 @@ venv/bin/python3 run.py
 Then open `dashboard.html` in your browser.
 
 ### Dashboard features
-- **Ticker tabs** — one chart at a time (AAPL, MSFT, BTC-USD, ETH-USD)
+- **Ticker tabs** — one chart at a time (NVDA, TSLA, COIN, SOL-USD)
 - **Day dropdown** — filters chart to a specific trading day (last 5 days available)
 - **Candlestick view by default** — toggle to Line chart and back
 - **Zoom** (scroll wheel) + **pan** (click and drag) + **Reset Zoom** button
