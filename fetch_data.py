@@ -151,7 +151,7 @@ def build_dashboard(assets):
         f'<button class="tab{"" if i else " active"}" id="tab-{a["ticker"]}" '
         f'onclick="showTicker(\'{a["ticker"]}\')">{a["ticker"]}</button>'
         for i, a in enumerate(assets)
-    ) + '<button class="tab" id="tab-pnl" onclick="showPnL()">P&amp;L</button>'
+    )
 
     date_options = "".join(f'<option value="{d}"{"  selected" if d == default_date else ""}>{d}</option>'
                            for d in all_dates)
@@ -280,6 +280,7 @@ def build_dashboard(assets):
         body         {{ font-family: sans-serif; background: #0f0f1a; color: #e0e0e0; margin: 0; padding: 20px; }}
         h1           {{ color: #4f8ef7; }}
         .controls    {{ display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }}
+        .nav         {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }}
         .tabs        {{ display: flex; gap: 6px; flex-wrap: wrap; }}
         .tab         {{ background: #1a1a2e; color: #7eb8f7; border: 1px solid #333; border-radius: 6px; padding: 6px 16px; cursor: pointer; font-size: 0.9em; }}
         .tab.active  {{ background: #4f8ef7; color: #fff; border-color: #4f8ef7; }}
@@ -321,11 +322,14 @@ def build_dashboard(assets):
 </head>
 <body>
     <h1>Signal Reader Dashboard</h1>
-    <div class="controls">
-        <div class="tabs">{ticker_tabs}</div>
-        <span class="date-label" id="day-label">Day:</span>
-        <select id="date-select" onchange="changeDate(this.value)">{date_options}</select>
-        <span class="date-label" style="color:#555" id="interval-label">Interval: {INTERVAL}</span>
+    <div class="nav">
+        <div class="controls">
+            <div class="tabs">{ticker_tabs}</div>
+            <span class="date-label" id="day-label">Day:</span>
+            <select id="date-select" onchange="changeDate(this.value)">{date_options}</select>
+            <span class="date-label" style="color:#555" id="interval-label">Interval: {INTERVAL}</span>
+        </div>
+        <button class="tab" id="tab-pnl" onclick="showPnL()" style="margin-left:auto">P&amp;L</button>
     </div>
     <div id="chart-panel">{cards}</div>
     {pnl_section}
