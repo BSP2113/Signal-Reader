@@ -48,6 +48,38 @@ def fetch(ticker):
     }
 
 
+def score_signal(direction, closes_so_far, vol, avg_volume):
+    """Rate a signal TAKE / MAYBE / SKIP using only data available at the moment it fires."""
+    score = 0
+
+    # Is price trending in the same direction over the last 20 bars?
+    lookback = min(20, len(closes_so_far) - 1)
+    trend_up = closes_so_far[-1] > closes_so_far[-lookback]
+    aligned  = (direction == "UP" and trend_up) or (direction == "DOWN" and not trend_up)
+    score   += 1 if aligned else -1
+
+    # Is volume backing the move?
+    vol_ratio = vol / avg_volume if avg_volume else 0
+    if vol_ratio >= 1.5:
+        score += 1
+    elif vol_ratio < 0.5:
+        score -= 1
+
+    # Is price action choppy? Count direction changes in last 10 bars
+    flips = sum(
+        1 for j in range(1, min(10, len(closes_so_far) - 1))
+        if (closes_so_far[-j] - closes_so_far[-j-1]) * (closes_so_far[-j-1] - closes_so_far[-j-2]) < 0
+    )
+    score += 1 if flips < 3 else -1
+
+    if score >= 2:
+        return "TAKE"
+    elif score == 1:
+        return "MAYBE"
+    else:
+        return "SKIP"
+
+
 def detect_signals(asset, date_filter=None):
     """Flag 1-minute candles where price moved >1% or volume spiked >2x average."""
     signals    = []
@@ -70,8 +102,15 @@ def detect_signals(asset, date_filter=None):
             if price_change > 0.01:
                 reason.append(f"price moved {price_change:.2%} {direction}")
             if volume_spike:
-                reason.append(f"volume {volumes[i]:,} vs avg {avg_volume:,.0f}")
-            signals.append({"date": labels[i], "reason": ", ".join(reason), "direction": direction})
+                vol_ratio = volumes[i] / avg_volume if avg_volume else 0
+                reason.append(f"{vol_ratio:.1f}x avg volume")
+            rating = score_signal(direction, closes[:i+1], volumes[i], avg_volume)
+            signals.append({
+                "date":      labels[i],
+                "reason":    ", ".join(reason),
+                "direction": direction,
+                "rating":    rating,
+            })
 
     return signals
 
@@ -98,9 +137,11 @@ def build_dashboard(assets):
         signals = detect_signals(asset, date_filter=default_date)
         signal_rows = "".join(
             f'<tr class="signal-{s["direction"].lower()}">'
-            f'<td>{s["date"]}</td><td>{s["direction"]}</td><td>{s["reason"]}</td></tr>'
+            f'<td>{s["date"]}</td><td>{s["direction"]}</td>'
+            f'<td><span class="rating rating-{s["rating"].lower()}">{s["rating"]}</span></td>'
+            f'<td>{s["reason"]}</td></tr>'
             for s in signals
-        ) or "<tr><td colspan='3'>No signals detected</td></tr>"
+        ) or "<tr><td colspan='4'>No signals detected</td></tr>"
 
         display = "block" if i == 0 else "none"
         cards += f"""
@@ -114,7 +155,7 @@ def build_dashboard(assets):
             </div>
             <h3>Signals</h3>
             <table>
-                <thead><tr><th>Date</th><th>Direction</th><th>Reason</th></tr></thead>
+                <thead><tr><th>Date</th><th>Direction</th><th>Rating</th><th>Reason</th></tr></thead>
                 <tbody id="signals-{ticker}">{signal_rows}</tbody>
             </table>
         </div>
@@ -168,6 +209,10 @@ def build_dashboard(assets):
         td           {{ padding: 4px 8px; }}
         .signal-up   {{ color: #4caf50; }}
         .signal-down {{ color: #f44336; }}
+        .rating      {{ font-weight: bold; padding: 2px 7px; border-radius: 4px; font-size: 0.8em; }}
+        .rating-take  {{ background: #1b3a1b; color: #4caf50; }}
+        .rating-maybe {{ background: #2e2a10; color: #f0c040; }}
+        .rating-skip  {{ background: #2a1a1a; color: #888; }}
         .meta        {{ color: #555; font-size: 0.8em; margin-top: 30px; }}
         .btn-row     {{ display: flex; gap: 8px; margin-bottom: 10px; }}
         .reset-btn, .toggle-btn {{
