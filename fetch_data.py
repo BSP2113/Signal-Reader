@@ -315,6 +315,7 @@ def build_dashboard(assets):
 </head>
 <body>
     <h1>Signal Reader Dashboard</h1>
+    {pnl_section}
     <div class="controls">
         <div class="tabs">{ticker_tabs}</div>
         <span class="date-label">Day:</span>
@@ -322,7 +323,6 @@ def build_dashboard(assets):
         <span class="date-label" style="color:#555">Interval: {INTERVAL}</span>
     </div>
     {cards}
-    {pnl_section}
     <p class="meta">Generated: {generated} — auto-refreshes every 60 seconds (keep run.py running)</p>
     <script>
         var charts    = {{}};
