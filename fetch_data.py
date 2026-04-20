@@ -75,11 +75,14 @@ def score_signal(direction, closes_so_far, vol, avg_volume, today_start_idx):
     if counter_dominant and vol_ratio < 2.0:
         return "SKIP"
 
+    # Volume floor: below 1.0x average can never reach TAKE — caps at MAYBE or SKIP
+    if vol_ratio < 1.0:
+        if vol_ratio < 0.5:
+            return "SKIP"
+        return "MAYBE"
+
     # Volume conviction
-    if vol_ratio >= 1.5:
-        score += 1
-    elif vol_ratio < 0.5:
-        score -= 1
+    score += 1 if vol_ratio >= 1.5 else 0
 
     # Choppiness: too many direction flips recently = unreliable signal
     recent = todays_closes[-min(12, len(todays_closes)):]
