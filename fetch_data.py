@@ -11,16 +11,11 @@ import os
 import yfinance as yf
 from datetime import datetime
 
-# Assets to track — add or remove tickers here
-TICKERS = ["NVDA", "TSLA", "COIN", "SOL-USD"]
-
-# 1-minute data — Yahoo Finance supports up to 7 days at this resolution
-PERIOD = "5d"
-INTERVAL = "1m"
+TICKERS = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "MSTR", "SMCI", "NFLX", "HOOD"]
 
 
 def fetch(ticker):
-    data = yf.download(ticker, period=PERIOD, interval=INTERVAL, progress=False, auto_adjust=True)
+    data = yf.download(ticker, period="5d", interval="1m", progress=False, auto_adjust=True)
     if data.empty:
         print(f"  Warning: no data returned for {ticker}")
         return None
@@ -50,24 +45,15 @@ def fetch(ticker):
 
 
 def score_signal(direction, closes_so_far, vol, avg_volume, today_start_idx):
-    """Rate a signal TAKE / MAYBE / SKIP using only data available at the moment it fires.
-
-    The EMA crossover already captures direction — so we score on:
-      1. Volume conviction
-      2. Whether price action is choppy
-      3. Dominant trend protection: block counter-trend exits on strongly trending days
-    """
     score     = 0
     vol_ratio = vol / avg_volume if avg_volume else 0
 
-    # Only use today's candles — avoids overnight gap distortion
     todays_closes = closes_so_far[today_start_idx:]
     if len(todays_closes) < 2:
         return "SKIP"
 
-    # Dominant trend protection: compare to today's open — captures the full day's trend, not just the last 60 bars
-    day_open    = todays_closes[0]
-    day_change  = (todays_closes[-1] - day_open) / day_open if day_open else 0
+    day_open         = todays_closes[0]
+    day_change       = (todays_closes[-1] - day_open) / day_open if day_open else 0
     strong_trend     = abs(day_change) > 0.02
     dominant_up      = day_change > 0
     counter_dominant = strong_trend and (
@@ -76,16 +62,13 @@ def score_signal(direction, closes_so_far, vol, avg_volume, today_start_idx):
     if counter_dominant and vol_ratio < 2.0:
         return "SKIP"
 
-    # Volume floor: below 1.0x average can never reach TAKE — caps at MAYBE or SKIP
     if vol_ratio < 1.0:
         if vol_ratio < 0.5:
             return "SKIP"
         return "MAYBE"
 
-    # Volume conviction
     score += 1 if vol_ratio >= 1.5 else 0
 
-    # Choppiness: too many direction flips recently = unreliable signal
     recent = todays_closes[-min(12, len(todays_closes)):]
     flips  = sum(1 for j in range(1, len(recent) - 1)
                  if (recent[-j] - recent[-j-1]) * (recent[-j-1] - recent[-j-2]) < 0)
@@ -100,14 +83,12 @@ def score_signal(direction, closes_so_far, vol, avg_volume, today_start_idx):
 
 
 def detect_signals(asset, date_filter=None):
-    """Flag 1-minute candles where price moved >1% or volume spiked >2x average."""
     signals    = []
     closes     = asset["closes"]
     volumes    = asset["volumes"]
     labels     = asset["labels"]
     avg_volume = sum(volumes) / len(volumes) if volumes else 1
 
-    # Find the start index of the filtered date so trend calc stays within today
     today_start_idx = 0
     if date_filter:
         for k, l in enumerate(labels):
@@ -142,10 +123,15 @@ def detect_signals(asset, date_filter=None):
     return signals
 
 
-def build_dashboard(assets):
-    # Collect all available trading dates across all tickers
+def current_default_date(assets):
+    """Default to the last date any asset has data for."""
     all_dates = sorted(set(d for a in assets for d in a["dates"]))
-    default_date = all_dates[-1] if all_dates else ""
+    return all_dates[-1] if all_dates else ""
+
+
+def build_dashboard(assets):
+    all_dates    = sorted(set(d for a in assets for d in a["dates"]))
+    default_date = current_default_date(assets)
 
     ticker_tabs = "".join(
         f'<button class="tab{"" if i else " active"}" id="tab-{a["ticker"]}" '
@@ -153,14 +139,16 @@ def build_dashboard(assets):
         for i, a in enumerate(assets)
     )
 
-    date_options = "".join(f'<option value="{d}"{"  selected" if d == default_date else ""}>{d}</option>'
-                           for d in all_dates)
+    date_options = "".join(
+        f'<option value="{d}"{"  selected" if d == default_date else ""}>{d}</option>'
+        for d in all_dates
+    )
 
     cards     = ""
     charts_js = ""
 
     for i, asset in enumerate(assets):
-        ticker = asset["ticker"]
+        ticker  = asset["ticker"]
         signals = detect_signals(asset, date_filter=default_date)
         signal_rows = "".join(
             f'<tr class="signal-{s["direction"].lower()}">'
@@ -208,7 +196,6 @@ def build_dashboard(assets):
         charts['{ticker}']    = buildChart('{ticker}', '{default_date}');
         """
 
-    # Load exercises from file
     exercises_path = os.path.join(os.path.dirname(__file__), "exercises.json")
     exercises = []
     if os.path.exists(exercises_path):
@@ -258,7 +245,7 @@ def build_dashboard(assets):
             """
         pnl_section = f"""
         <div id="pnl-panel" style="display:none">
-            <div class="section-header">P&L Tracker</div>
+            <div class="section-header">P&amp;L Tracker</div>
             <div class="pnl-tracker">{ex_cards}</div>
         </div>
         """
@@ -327,7 +314,7 @@ def build_dashboard(assets):
             <div class="tabs">{ticker_tabs}</div>
             <span class="date-label" id="day-label">Day:</span>
             <select id="date-select" onchange="changeDate(this.value)">{date_options}</select>
-            <span class="date-label" style="color:#555" id="interval-label">Interval: {INTERVAL}</span>
+            <span class="date-label" style="color:#555" id="interval-label">Interval: 1m</span>
         </div>
         <button class="tab" id="tab-pnl" onclick="showPnL()" style="margin-left:auto">P&amp;L</button>
     </div>
@@ -499,7 +486,8 @@ if __name__ == "__main__":
         print("No data fetched. Check your internet connection.")
     else:
         html = build_dashboard(assets)
-        with open("dashboard.html", "w") as f:
+        out = os.path.join(os.path.dirname(__file__) or ".", "dashboard.html")
+        with open(out, "w") as f:
             f.write(html)
-        print(f"\nDone! Open Signal-Reader/dashboard.html in your browser.")
+        print(f"\nDone! Open Signal/dashboard.html in your browser.")
         print(f"Signals flagged when price moves >1% or volume spikes >2x average.")
