@@ -284,6 +284,87 @@ PER_DAY_GROWTH = {
             "a second layer of protection alongside BEAR allocation cuts."
         ),
     ],
+    "2026-04-29": [
+        (
+            "Zero TAKE signals on Apr 29 — all 8 entries MAYBE-rated; AMD (+$6.35) masked what would have been an $8.40 loss on 7 losing trades",
+            "No TAKE signals appeared in the pool on Apr 29; every entry was MAYBE-rated. AMD (09:54, 2.8x vol, TAKE_PROFIT +3.16%) "
+            "was the only winner that mattered — without it the session P&L is -$8.40 on 7 losses. On zero-TAKE days the win rate "
+            "dropped to 12.5% (1 of 8). Test: on days with zero TAKE signals, apply a tighter volume floor for MAYBE entries "
+            "(e.g., ≥1.5x instead of ≥1.0x) to reduce low-conviction entries. Check the 38-day backfill: what is the average "
+            "MAYBE win rate on zero-TAKE days vs days with at least one TAKE signal?"
+        ),
+        (
+            "CRDO hit trailing stop at -0.94% — peaked above +1%, trail armed, then reversed immediately; same single-bar spike pattern as Apr 17 RIVN, Apr 21 RIVN and CRWD",
+            "CRDO entered at 09:51 and exited trailing stop at -0.94% (-$1.07). The trail locked on a single spike above +1% "
+            "then CRDO dropped more than 2% from that peak within one or two bars. This is now the third occurrence of the "
+            "spike-and-reverse trailing stop pattern (Apr 17 RIVN, Apr 21 RIVN and CRWD, now Apr 29 CRDO). "
+            "The 2-consecutive-close confirmation test proposed on Apr 21 would have filtered this exit — CRDO would have "
+            "continued to NO_PROGRESS instead, saving the full $1.07 loss. This pattern is repeating often enough to warrant a rule change test."
+        ),
+        (
+            "RIVN (10:29) and ARM (10:32) both entered late into a flat session and both exited NO_PROGRESS — four losses had already printed before these entries fired",
+            "By 10:29, CRWD, TSLA, and RDDT had all exited NO_PROGRESS and CRDO had trailing-stopped. Four of the first five "
+            "entries failed to find momentum. RIVN entered at 10:29 and lost $3.10 (NO_PROGRESS at 11:59); ARM entered at 10:32 "
+            "and lost $1.47 (NO_PROGRESS at 12:03) — $4.57 in losses added after the session clearly showed no direction. "
+            "Test: if more than half of completed exits are losses at any point after 10:00, block new ORB entries for the rest "
+            "of the session. On Apr 29, this rule would have triggered after RDDT's NO_PROGRESS at 11:26 and blocked both RIVN and ARM entirely."
+        ),
+    ],
+    "2026-04-30": [
+        (
+            "DKNG (TAKE-rated, 11:19 entry) exited NO_PROGRESS at -$11.20 — a TAKE signal entering with only 41 minutes before the 14:00 close got a large allocation and had no time to hit take-profit",
+            "DKNG fired a TAKE signal at 11:19 with the second-largest allocation of the session, but with the hard 14:00 exit "
+            "there were only 41 minutes for a +3% take-profit to land. It exited NO_PROGRESS at 12:49 (-1.16%, -$11.20) — "
+            "the second-biggest loss of the day. TAKE signals get the largest allocations; when a TAKE fires after 11:00, the "
+            "time window shrinks drastically and the risk-reward skews negative. Test: block new entries after 11:00 entirely, "
+            "or require a higher volume conviction threshold (e.g., ≥2.5x) for entries that late to filter low-probability late allocations."
+        ),
+        (
+            "ARM (TAKE, 09:45, -$9.27 stop) was the session's worst performer while 6 MAYBE entries that followed went 5W/1L — the highest-conviction early signal failed while later MAYBE entries won",
+            "ARM received the first and largest early allocation as a TAKE signal but stopped at -1.53% by 09:53. COIN, PLTR, "
+            "and RKLB entered one to three minutes later as MAYBE-rated and went 2W/1L. Both take-profits (KOPN and SOFI) "
+            "entered after 10:30 as MAYBE signals. Rating alone (TAKE vs MAYBE) did not predict session outcome — later entries "
+            "consistently outperformed the early TAKE. This reinforces the late-ORB vs early-ORB pattern from Apr 16: check whether "
+            "TAKE signals before 10:00 have worse take-profit rates than TAKE signals after 10:00 across all 38 backfill days."
+        ),
+        (
+            "KOPN exited at +4.77% (+$21.79) but EOD price was roughly 12.5% above entry — the +3% take-profit rule cut the session's biggest winner at a third of its full move",
+            "KOPN (10:30 entry at $3.98, exited at $4.17) was the MVP of Apr 30. EOD close was approximately $4.67 — roughly "
+            "$0.69 more per share, or ~$16 additional dollars the take-profit left on the table. This is the second time KOPN "
+            "has hit take-profit and then continued running strongly (Apr 15 was similar). Consider a tiered exit for KOPN: "
+            "if it clears +4%, switch to trailing stop rather than immediately taking profit at +3%, letting the trail ride "
+            "the momentum instead of capping the gain at the first threshold."
+        ),
+    ],
+    "2026-05-01": [
+        (
+            "PLTR's GAP_GO TAKE allocation (~$1,960) produced $30.35 of the $58.26 loss — 52% of the day's damage from one position that reversed immediately",
+            "PLTR gapped up and received the largest position of the session as a TAKE-rated GAP_GO. It reversed straight into "
+            "stop territory by 10:00 (-1.55%, -$30.35). GAP_GO signals fire on opening momentum; when the gap fades within "
+            "the first 30 minutes, the premise has already failed before the stop triggers. Test: apply a T+30 price check "
+            "for GAP_GO trades — if the position is below its entry price 30 minutes after entry, exit early rather than "
+            "holding to the full -1.5% stop. On May 1, PLTR was likely below entry by 09:40; an early exit at roughly -0.5% "
+            "would have saved ~$20 vs the $30.35 full stop."
+        ),
+        (
+            "Three simultaneous stop-losses at 10:00 (PLTR, SMCI, CRWD) signaled a coordinated market selloff — COIN and ARM entered after and added only $0.74 net",
+            "All three early positions hit stop in the same minute, indicating broad selling pressure rather than individual "
+            "stock weakness. COIN entered at 09:57 while PLTR and SMCI were still open and eventually exited NO_PROGRESS at "
+            "-$3.50. ARM entered at 10:07 after all three stops fired and closed TIME_CLOSE at +$4.24. Net from post-triple-stop "
+            "entries: +$0.74 — barely meaningful against $58.26 in losses. Test: if 3+ stop-losses fire within a 15-minute "
+            "window, block new ORB entries for the rest of the session. On May 1 this would have cut COIN's $3.50 loss while "
+            "forfeiting only ARM's $4.24 gain — a $0.74 net cost that substantially reduces tail risk on broad-selloff days."
+        ),
+        (
+            "ARM (+0.69%, +$4.24 TIME_CLOSE) was the sole survivor entering 35 minutes after the triple stop — its gain barely moved the needle on a $58 loss day",
+            "ARM entered at 10:07 on a MAYBE ORB and closed at +$4.24, the only positive trade. With the daily loss limit at "
+            "-$75 and the session already at -$58.26, the model still had $16.74 of remaining headroom — enough to allow COIN "
+            "and ARM entries. But ARM's $4.24 against $58.26 in losses shows that individual wins have diminishing impact once "
+            "a session is deeply negative. As the portfolio compounds, a flat $75 daily loss limit represents a shrinking "
+            "fraction of capital. Consider scaling the limit to 1.5% of starting capital (e.g., ~$77 now) so the floor grows "
+            "proportionally as the strategy proves itself."
+        ),
+    ],
     "2026-04-27": [
         (
             "PLTR's 8.2x volume spike produced a fading breakout — high volume alone did not confirm follow-through",
@@ -317,15 +398,18 @@ PER_DAY_GROWTH = {
 # None means the note has no linked pool item and is always visible.
 # When an index is in addressed or rejected, that individual note is suppressed.
 PER_DAY_GROWTH_IDX = {
-    "2026-04-14": [32, None, None],   # note 1 → low-vol MAYBE filter → rejected
+    "2026-04-14": [32, 40, None],      # note 1 → low-vol MAYBE filter → rejected | note 2 → GAP_GO flat T+20 gate → rejected
     "2026-04-15": [33, None, None],   # note 1 → trail lock 1.5% → rejected
     "2026-04-16": [26, None, None],   # note 1 → no-progress exit → shipped
-    "2026-04-17": [29, None, None],   # note 1 → entry burst cap → rejected
-    "2026-04-21": [29, None, None],   # note 1 → entry burst cap (same idea) → rejected
-    "2026-04-22": [35, None, None],   # note 1 → ARM late-signal pattern → not pursuing
+    "2026-04-17": [29, None, 43],      # note 1 → entry burst cap → rejected | note 3 → 2-bar trail lock → shipped
+    "2026-04-21": [29, 43, 41],        # note 1 → entry burst cap → rejected | note 2 → 2-bar trail lock → shipped | note 3 → T+20 weakness gate → rejected
+    "2026-04-22": [35, None, 42],      # note 1 → ARM late-signal pattern → not pursuing | note 3 → quick-stop pause gate → rejected
     "2026-04-23": [30, None, None],   # note 1 → late-session stop gate → rejected
-    "2026-04-27": [31, None, None],   # note 1 → choppiness boost → rejected
+    "2026-04-27": [31, 39, None],      # note 1 → choppiness boost → rejected | note 2 → GAP_GO early trail gate → rejected
     "2026-04-28": [None, None, None],
+    "2026-04-29": [None, 43, None],    # note 2 → 2-bar trail lock → shipped
+    "2026-04-30": [None, None, None],
+    "2026-05-01": [None, None, None],
 }
 
 def load_growth_state():
@@ -1108,6 +1192,38 @@ def build_dashboard(assets):
     # --- Improvements panel ---
     # Items removed from GROWTH_POOL but still shown on the board (keyed by archived index)
     ARCHIVED_ITEMS = {
+        42: {
+            "title":    "Quick-stop pause gate — block new ORB entries for 15 min after any position stops within 45 min of entry",
+            "date":     "Apr 28, 2026",
+            "original": "RIVN stopped out 36 minutes after entry on Apr 22 while the session was still loading ORB entries. "
+                        "A quick stop early in the session may indicate session-level choppiness before other positions have "
+                        "revealed their direction. Proposed: if any position stops within 45 minutes of entry, pause new ORB "
+                        "entries for 15 minutes to avoid committing capital into a reversing open.",
+        },
+        41: {
+            "title":    "T+20 weakness gate — block new ORB entries for 15 min when 2+ positions are at/below entry price at T+20",
+            "date":     "Apr 28, 2026",
+            "original": "On Apr 21, SHOP, SMCI, and SOFI all entered after RIVN had already begun reversing — by 09:52 multiple "
+                        "open positions were below their entry prices but the model kept committing capital. Proposed: if 2+ open "
+                        "positions are simultaneously at or below their entry price 20 minutes after their own entry, block new "
+                        "ORB entries for 15 minutes as a session-weakness signal.",
+        },
+        40: {
+            "title":    "GAP_GO flat at T+20 gate — raise MAYBE ORB volume floor to 2.0x when first GAP_GO stalls after 20 min",
+            "date":     "Apr 28, 2026",
+            "original": "On Apr 14, APP's GAP_GO entered at 09:35 and was flat by 09:55 (T+20). SOFI entered at 09:56 as a "
+                        "1.6x MAYBE and stopped out. When the first GAP_GO position is flat/negative at T+20, morning momentum "
+                        "is weak — proposed raising the MAYBE ORB volume bar to ≥2.0x (from 1.5x) for subsequent entries "
+                        "to filter marginal signals when gap momentum has already failed.",
+        },
+        39: {
+            "title":    "GAP_GO early trail gate — raise ORB volume bar to 2.5x when a GAP_GO exits trailing stop before 09:45",
+            "date":     "Apr 28, 2026",
+            "original": "KOPN (GAP_GO TAKE) trailed out at 09:38 on Apr 27 — just 6 minutes after entry — on a choppy session "
+                        "that produced two more stop losses. When a GAP_GO position exits trailing stop before 09:45, morning "
+                        "momentum has immediately reversed. Proposed: use that early trail as a session choppiness flag and "
+                        "raise the ORB volume requirement to ≥2.5x for the rest of the day.",
+        },
         38: {
             "title":    "Concurrent position cap — limit open positions to N at once before allowing new entries",
             "date":     "Apr 28, 2026",
@@ -1572,6 +1688,33 @@ def build_dashboard(assets):
                        "large trending days. Any filter that protects against bad days but blunts those big days loses net. "
                        "Same structural failure as the burst cap, late stop gate, and choppiness boost.",
              "date": "Apr 27, 2026"},
+        42: {"reason": "Tested across 12 live days and 40 total days (backfill + live). "
+                       "Net: +$16.25 on 12 live days, +$6.12 on 40 days — both essentially noise. "
+                       "The gate saves on clear reversal days (Mar 5 +$62, Apr 28 +$23) but blocks winners on trending days "
+                       "where one ticker stops fast and the rest of the session follows through (Mar 4 -$57, Mar 9 -$26, Apr 22 -$6). "
+                       "A quick stop early in the session does not reliably predict what the rest of the session will do. "
+                       "The 15-minute blunt-force block is too crude — it blocks good entries alongside bad ones in equal proportion.",
+             "date": "Apr 28, 2026"},
+        41: {"reason": "Tested across 12 live days. Net: -$7.74. "
+                       "Saves on some bad days (Apr 27 +$15, Apr 28 +$13) but blocks ARM's take-profit on Apr 23 (-$24) — "
+                       "the entire session's profit — because two earlier positions happened to be below entry at T+20 on a day "
+                       "that was still profitable overall. The gate is broad enough to misfire on days that start slow but "
+                       "ultimately trend. Two positions being simultaneously below entry at T+20 is not a reliable reversal signal "
+                       "when one of them is ARM about to hit take-profit 2 minutes later.",
+             "date": "Apr 28, 2026"},
+        40: {"reason": "Tested across 12 live days. Net: -$60.55. "
+                       "The gate fires on Apr 24 — the best trending day in the dataset (+$166) — and blocks DKNG take-profit (+$27) "
+                       "and NVDA take-profit (+$36). KOPN's GAP_GO stalled at T+20 on Apr 24 but the rest of the session was a "
+                       "strong bull day. A stalling GAP_GO on one ticker does not indicate that ORB signals on other tickers "
+                       "will fail. Slightly positive on Apr 27 (+$2.44) but the Apr 24 damage is severe and not recoverable.",
+             "date": "Apr 28, 2026"},
+        39: {"reason": "Tested across 12 live days and 40 total days. Net: -$87.79 on 12 days. "
+                       "Fires on Apr 24 (best day, +$166) and blocks META time-close (+$25), DKNG take-profit (+$27), "
+                       "and NVDA take-profit (+$36). KOPN trailed at 09:44 — one minute before the 09:45 cutoff — on what "
+                       "turned out to be a strong trending day. One ticker fading at the open does not mean the whole session "
+                       "is bad. The gate conflates a single ticker's reversal with session-wide weakness. Only helps on Apr 27 "
+                       "(+$0.07, trivial). Same structural failure as gates 1-3.",
+             "date": "Apr 28, 2026"},
         38: {"reason": "Tested caps of 2, 3, and 4 concurrent open positions across 12 tracked days and 38 backfill days. "
                        "Cap=3: -$93 tracked / -$150 backfill. Cap=4: -$23 tracked / -$10 backfill. "
                        "The cap does help on bad days — Apr 28 cap=3 saves $32, Apr 21 saves $19, Mar 17 saves $35. "
@@ -1813,6 +1956,26 @@ def build_dashboard(assets):
                 relative strength vs SPY at that bar, or a signal quality composite score beyond volume alone.
             </div>
             <div class="active-card-verdict verdict-watch">Revisit at 30 days. Need more examples of same-minute budget conflicts to measure how often the best mover is blocked, and whether any entry-time attribute predicts it. Log each occurrence with the blocked ticker and its eventual move.</div>
+        </div>
+
+        <div class="active-card">
+            <div class="active-card-title">TAKE-Only Mode — skip all MAYBE-rated entries to reduce stop losses <span style="color:#555;font-size:0.76em;font-weight:normal;margin-left:8px">May 2, 2026</span></div>
+            <div class="active-card-desc">
+                The 15-day EX1 window showed MAYBE trades at -$90.36 (14% win rate, 14 trades) vs TAKE at +$102.48
+                (45% win rate, 53 trades) — which made TAKE-only look compelling. But those 14 MAYBE trades were
+                concentrated entirely on 2 days (Apr 28 and Apr 29). The 15-day picture was distorted by timing,
+                not signal quality.
+                <br><br>
+                In the 38-day backfill (Mar 2 – Apr 24), MAYBE trades were
+                <strong style="color:#e0e0e0">net +$357.09 at 41% win rate (214 trades)</strong> vs TAKE at
+                <strong style="color:#e0e0e0">+$234.82 at 40% win rate (40 trades)</strong>.
+                MAYBE trades contributed more total P&L and had a similar win rate — the case for cutting them
+                does not hold up on a full dataset.
+                <br><br>
+                The Apr 28–29 loss cluster may reflect a bad market environment rather than a MAYBE problem.
+                TAKE-only would have cost significant upside on trending days where MAYBE entries also ran.
+            </div>
+            <div class="active-card-verdict verdict-watch">Revisit at 30 days. If MAYBE win rate stays materially below TAKE across a full 30-day sample, a soft filter (e.g. skip MAYBE on BEAR days only) may be worth testing. Do not cut MAYBE entirely based on a 2-day cluster.</div>
         </div>
 
 """

@@ -1,10 +1,10 @@
 {
-  "date": "2026-04-28",
-  "state": "bearish",
-  "spy_prev_close": 715.16,
-  "spy_premarket": 711.52,
-  "vixy_level": 27.83,
-  "spy_gap_pct": -0.51,
-  "vixy_trend_pct": -3.2,
-  "generated": "2026-04-28 09:20:02"
+  "date": "2026-05-01",
+  "state": "neutral",
+  "spy_prev_close": 718.41,
+  "spy_premarket": 720.71,
+  "vixy_level": 27.16,
+  "spy_gap_pct": 0.32,
+  "vixy_trend_pct": -3.087,
+  "generated": "2026-05-01 09:20:02"
 }

@@ -25,8 +25,8 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
-TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "APP", "RIVN", "CRWD", "KOPN",
-               "SHOP", "SOFI", "ARM", "DKNG", "RKLB", "RDDT"]
+TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "RIVN", "DELL", "KOPN",
+               "SHOP", "ASTS", "ARM", "DKNG", "RKLB", "RDDT"]
 BUDGET      = 5000.0
 ORB_BARS    = 15
 ORB_CUTOFF  = "11:30"
@@ -161,21 +161,33 @@ def score_signal(closes_so_far, vol, avg_volume):
 
 
 def find_exit(closes, times, entry_price, entry_bar):
-    peak = entry_price
-    entry_mins = int(times[entry_bar][:2]) * 60 + int(times[entry_bar][3:])
-    t90_mins   = entry_mins + NO_PROGRESS_MINS
-    t90_passed = False
+    peak         = entry_price
+    consec_above = 0       # consecutive closes >= entry+1% (trail arm requires 2)
+    trail_armed  = False
+    lock_level   = entry_price * (1 + TRAIL_LOCK)
+    entry_mins   = int(times[entry_bar][:2]) * 60 + int(times[entry_bar][3:])
+    t90_mins     = entry_mins + NO_PROGRESS_MINS
+    t90_passed   = False
 
     for i in range(entry_bar + 1, len(closes)):
         price    = closes[i]
         bar_mins = int(times[i][:2]) * 60 + int(times[i][3:])
         peak     = max(peak, price)
 
+        # Require 2 consecutive closes above entry+1% before arming the trail.
+        # Prevents single-bar spikes from triggering the trail lock prematurely.
+        if price >= lock_level:
+            consec_above += 1
+        else:
+            consec_above = 0
+        if consec_above >= 2:
+            trail_armed = True
+
         if times[i] >= ENTRY_CLOSE:
             return {"bar": i, "time": times[i], "price": price, "reason": "TIME_CLOSE"}
         if price >= entry_price * (1 + TAKE_PROFIT):
             return {"bar": i, "time": times[i], "price": price, "reason": "TAKE_PROFIT"}
-        if peak >= entry_price * (1 + TRAIL_LOCK) and price <= peak * (1 - TRAIL_STOP):
+        if trail_armed and price <= peak * (1 - TRAIL_STOP):
             return {"bar": i, "time": times[i], "price": price, "reason": "TRAILING_STOP"}
         if price <= entry_price * (1 - STOP_LOSS):
             return {"bar": i, "time": times[i], "price": price, "reason": "STOP_LOSS"}
@@ -247,7 +259,7 @@ def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_
     return []
 
 
-def run_ex1(trade_date=None, backfill=False):
+def run_ex1(trade_date=None, backfill=False, save=True, result_file=None):
     if trade_date is None:
         trade_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -353,7 +365,7 @@ def run_ex1(trade_date=None, backfill=False):
         pass
 
     # Losing streak check: reduce MAYBE allocations after 2+ consecutive losing days
-    filename     = "backfill.json" if backfill else "exercises.json"
+    filename     = result_file or ("backfill.json" if backfill else "exercises.json")
     streak       = loss_streak_count(trade_date, filename)
     in_streak    = streak >= STREAK_TRIGGER
     if in_streak:
@@ -521,7 +533,10 @@ def run_ex1(trade_date=None, backfill=False):
         print(f"\n  No trades — skipping save.")
         return exercise
 
-    filename = "backfill.json" if backfill else "exercises.json"
+    if not save:
+        return exercise
+
+    filename = result_file or ("backfill.json" if backfill else "exercises.json")
     path     = os.path.join(BASE_DIR, filename)
     existing = []
     if os.path.exists(path):
