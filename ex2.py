@@ -64,7 +64,7 @@ MAYBE_STREAK_CUT = 0.50
 DRAWDOWN_WINDOW    = 5
 DRAWDOWN_THRESHOLD = 0.015
 DRAWDOWN_CUT       = 0.50
-SPY_BULL       =  0.003   # premarket gap > +0.3% = bullish (matches market_check.py)
+SPY_BULL       =  0.004   # premarket gap > +0.4% = bullish (matches market_check.py)
 SPY_BEAR       = -0.005   # premarket gap < -0.5% = bearish
 VIXY_SURGE     =  0.03    # VIXY up >3% = bearish weight
 REALLOC_MIN_TIME    = "11:00"  # only reallocate after the morning ORB window
@@ -73,6 +73,7 @@ PM_ORB_RANGE_START  = "12:00"  # afternoon consolidation range start
 PM_ORB_RANGE_END    = "12:44"  # afternoon consolidation range end
 PM_ORB_CUTOFF       = "13:30"  # latest allowed PM_ORB entry
 PM_ORB_MIN_BARS     = 10       # minimum bars in range to form valid level
+PM_ORB_TAKE_FLOOR   = 2.0      # minimum vol ratio vs PM window avg to earn TAKE; 1.5x earns MAYBE
 ALLOC_PCT_BULL = {"TAKE": 0.35, "MAYBE": 0.20}
 ALLOC_PCT_NEUT = {"TAKE": 0.30, "MAYBE": 0.15}
 ALLOC_PCT_BEAR = {"TAKE": 0.10, "MAYBE": 0.10}
@@ -87,8 +88,24 @@ AFTERNOON_SCAN_START = "13:00" # begin scanning for afternoon breakouts
 AFTERNOON_ALLOC_MULT = 0.75    # 75% of normal TAKE allocation
 AFTERNOON_TIME_CLOSE = "15:30" # afternoon trades exit by 3:30pm
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ET       = "America/New_York"
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+CACHE_DIR = os.path.join(BASE_DIR, "data_cache")
+ET        = "America/New_York"
+
+
+def _load_day_cache(trade_date):
+    path = os.path.join(CACHE_DIR, f"{trade_date}.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
+
+def _save_day_cache(trade_date, data):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    path = os.path.join(CACHE_DIR, f"{trade_date}.json")
+    with open(path, "w") as f:
+        json.dump(data, f)
 
 
 def _load_creds():
@@ -341,27 +358,49 @@ def find_reentry(closes, volumes, times, exit_bar, spy_by_time, day_open, ticker
     return None
 
 
-def find_pm_orb(closes, volumes, times, ticker=None, spy_by_time=None):
-    """Post-lunch consolidation breakout: first close above 12:00–12:44 range high."""
+def find_pm_orb(closes, volumes, times, ticker=None, spy_by_time=None, pm_ref="morning_high"):
+    """Post-lunch breakout: first close above the reference level in PM window.
+
+    pm_ref options:
+      "morning_high" — high of all bars from open to 11:30 (default)
+      "noon_range"   — high of 12:00–12:44 consolidation bars (original)
+      "vwap"         — cumulative VWAP at each bar; triggers when close crosses above it
+    """
     day_open = closes[0]
 
+    # PM window avg volume used for scoring in all modes (morning vol would skew scoring)
     pm_range_vols   = [volumes[i] for i in range(len(times))
                        if PM_ORB_RANGE_START <= times[i] <= PM_ORB_RANGE_END]
-    pm_range_closes = [closes[i] for i in range(len(times))
-                       if PM_ORB_RANGE_START <= times[i] <= PM_ORB_RANGE_END]
-    if len(pm_range_closes) < PM_ORB_MIN_BARS:
-        return None
-    # Use PM consolidation window avg volume — full-day avg is biased by heavy morning
-    # volume and would SKIP all lunchtime bars even when volume is elevated for the time.
     pm_avg_vol = sum(pm_range_vols) / len(pm_range_vols) if pm_range_vols else 1
-    pm_high    = max(pm_range_closes)
+
+    if pm_ref == "noon_range":
+        pm_range_closes = [closes[i] for i in range(len(times))
+                           if PM_ORB_RANGE_START <= times[i] <= PM_ORB_RANGE_END]
+        if len(pm_range_closes) < PM_ORB_MIN_BARS:
+            return None
+        ref_level = max(pm_range_closes)
+    elif pm_ref == "morning_high":
+        morning_closes = [closes[i] for i in range(len(times)) if times[i] <= "11:30"]
+        if not morning_closes:
+            return None
+        ref_level = max(morning_closes)
+    # vwap: ref_level computed per-bar inside the loop
+
+    cum_vol = 0
+    cum_pv  = 0
 
     for i in range(len(times)):
+        cum_vol += volumes[i]
+        cum_pv  += closes[i] * volumes[i]
+
+        if pm_ref == "vwap":
+            ref_level = cum_pv / cum_vol if cum_vol > 0 else closes[i]
+
         if times[i] <= PM_ORB_RANGE_END:
             continue
         if times[i] > PM_ORB_CUTOFF:
             break
-        if closes[i] > pm_high:
+        if closes[i] > ref_level:
             rating, vr = score_signal(closes[:i+1], volumes[i], pm_avg_vol)
             if rating == "SKIP":
                 continue
@@ -374,6 +413,8 @@ def find_pm_orb(closes, volumes, times, ticker=None, spy_by_time=None):
                     spy_chg  = (spy_now - spy_open) / spy_open if spy_open else 0
                     if ticker_chg <= spy_chg:
                         continue  # was return None — keep scanning after first RS fail
+            if rating == "TAKE" and vr < PM_ORB_TAKE_FLOOR:
+                rating = "MAYBE"
             entry = {"bar": i, "time": times[i], "price": closes[i],
                      "rating": rating, "vol_ratio": round(vr, 1), "signal": "PM_ORB"}
             return (entry, find_exit(closes, times, entry["price"], i, ticker=ticker))
@@ -424,7 +465,7 @@ def find_afternoon_entry(closes, highs, volumes, times, morning_high, morning_av
     return None
 
 
-def run_ex2(trade_date=None, backfill=False, result_file=None):
+def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="baseline", pm_ref="morning_high", save=True):
     if trade_date is None:
         trade_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -433,23 +474,30 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
     print(f"EX2 — {trade_date}")
 
     key, secret = _load_creds()
-    client   = StockHistoricalDataClient(api_key=key, secret_key=secret)
     start_dt = datetime.strptime(trade_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     end_dt   = datetime.strptime(next_day,   "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
-    prior_daily = client.get_stock_bars(StockBarsRequest(
-        symbol_or_symbols=TICKERS, timeframe=TimeFrame.Day,
-        start=start_dt - timedelta(days=21), end=start_dt, feed="iex",
-    ))
-    prior_closes = {}
-    atr_pcts     = {}
-    for t in TICKERS:
-        bars = prior_daily.data.get(t, [])
-        if bars:
-            prior_closes[t] = bars[-1].close
-            val = calc_atr_pct(bars)
-            if val:
-                atr_pcts[t] = val
+    _cache        = _load_day_cache(trade_date)
+    _cache_miss   = _cache is None
+    prior_closes  = _cache["prior_closes"]  if _cache else {}
+    atr_pcts      = _cache["atr_pcts"]      if _cache else {}
+    spy_by_time   = _cache["spy_by_time"]   if _cache else {}
+    _cached_bars  = _cache["tickers"]       if _cache else {}
+    _new_bars     = {}   # populated during ticker loop on cache miss
+
+    if _cache_miss:
+        client = StockHistoricalDataClient(api_key=key, secret_key=secret)
+        prior_daily = client.get_stock_bars(StockBarsRequest(
+            symbol_or_symbols=TICKERS, timeframe=TimeFrame.Day,
+            start=start_dt - timedelta(days=21), end=start_dt, feed="iex",
+        ))
+        for t in TICKERS:
+            bars = prior_daily.data.get(t, [])
+            if bars:
+                prior_closes[t] = bars[-1].close
+                val = calc_atr_pct(bars)
+                if val:
+                    atr_pcts[t] = val
 
     if len(atr_pcts) >= 2:
         med_atr      = _stats.median(atr_pcts.values())
@@ -496,21 +544,21 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
         if market_state == "bearish": return round(starting_balance * ALLOC_PCT_BEAR[rating], 2)
         return round(starting_balance * ALLOC_PCT_NEUT[rating], 2)
 
-    spy_by_time = {}
-    try:
-        spy_bars = client.get_stock_bars(StockBarsRequest(
-            symbol_or_symbols="SPY", timeframe=TimeFrame.Minute,
-            start=start_dt, end=end_dt, feed="iex",
-        ))
-        df_spy = spy_bars.df
-        if isinstance(df_spy.index, pd.MultiIndex):
-            df_spy = df_spy.xs("SPY", level=0)
-        df_spy    = df_spy.tz_convert(ET)
-        spy_today = df_spy.between_time("09:30", "15:59")
-        for t, row in spy_today.iterrows():
-            spy_by_time[t.strftime("%H:%M")] = row["close"]
-    except Exception:
-        pass
+    if _cache_miss:
+        try:
+            spy_bars = client.get_stock_bars(StockBarsRequest(
+                symbol_or_symbols="SPY", timeframe=TimeFrame.Minute,
+                start=start_dt, end=end_dt, feed="iex",
+            ))
+            df_spy = spy_bars.df
+            if isinstance(df_spy.index, pd.MultiIndex):
+                df_spy = df_spy.xs("SPY", level=0)
+            df_spy    = df_spy.tz_convert(ET)
+            spy_today = df_spy.between_time("09:30", "15:59")
+            for t, row in spy_today.iterrows():
+                spy_by_time[t.strftime("%H:%M")] = row["close"]
+        except Exception:
+            pass
 
     filename    = result_file or ("backfill2.json" if backfill else "exercises.json")
     streak      = loss_streak_count(trade_date, filename)
@@ -534,26 +582,33 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
     for ticker in TICKERS:
         print(f"  Analyzing {ticker}...")
 
-        intraday = client.get_stock_bars(StockBarsRequest(
-            symbol_or_symbols=ticker, timeframe=TimeFrame.Minute,
-            start=start_dt, end=end_dt, feed="iex",
-        ))
-        df = intraday.df
-        if df.empty:
-            skipped.append(f"{ticker}(no data)")
-            continue
-        if isinstance(df.index, pd.MultiIndex):
-            df = df.xs(ticker, level=0)
-        df    = df.tz_convert(ET)
-        today = df.between_time("09:30", "15:59")
-        if today.empty:
-            skipped.append(f"{ticker}(no data)")
-            continue
+        if ticker in _cached_bars:
+            closes  = _cached_bars[ticker]["closes"]
+            highs   = _cached_bars[ticker]["highs"]
+            volumes = _cached_bars[ticker]["volumes"]
+            times   = _cached_bars[ticker]["times"]
+        else:
+            intraday = client.get_stock_bars(StockBarsRequest(
+                symbol_or_symbols=ticker, timeframe=TimeFrame.Minute,
+                start=start_dt, end=end_dt, feed="iex",
+            ))
+            df = intraday.df
+            if df.empty:
+                skipped.append(f"{ticker}(no data)")
+                continue
+            if isinstance(df.index, pd.MultiIndex):
+                df = df.xs(ticker, level=0)
+            df    = df.tz_convert(ET)
+            today = df.between_time("09:30", "15:59")
+            if today.empty:
+                skipped.append(f"{ticker}(no data)")
+                continue
 
-        closes  = [round(float(v), 2) for v in today["close"].tolist()]
-        highs   = [round(float(v), 2) for v in today["high"].tolist()]
-        volumes = [int(v) for v in today["volume"].tolist()]
-        times   = [t.strftime("%H:%M") for t in today.index]
+            closes  = [round(float(v), 2) for v in today["close"].tolist()]
+            highs   = [round(float(v), 2) for v in today["high"].tolist()]
+            volumes = [int(v) for v in today["volume"].tolist()]
+            times   = [t.strftime("%H:%M") for t in today.index]
+            _new_bars[ticker] = {"closes": closes, "highs": highs, "volumes": volumes, "times": times}
 
         # Cache full bar data for afternoon scan (runs after main loop)
         morning_vols  = [v for v, t in zip(volumes, times) if t < AFTERNOON_SCAN_START]
@@ -726,7 +781,7 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
 
         # PM_ORB: post-lunch consolidation breakout
         pm = find_pm_orb(d["closes"], d["volumes"], d["times"],
-                         ticker=ticker, spy_by_time=spy_by_time)
+                         ticker=ticker, spy_by_time=spy_by_time, pm_ref=pm_ref)
         if pm:
             pm_entry, pm_exit = pm
             pm_alloc = round(base_alloc(pm_entry["rating"]) * modifier, 2)
@@ -758,6 +813,14 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
                 "pnl_pct":     pm_pnl_pct,
             })
 
+    if _cache_miss and _new_bars:
+        _save_day_cache(trade_date, {
+            "prior_closes": prior_closes,
+            "atr_pcts":     atr_pcts,
+            "spy_by_time":  spy_by_time,
+            "tickers":      _new_bars,
+        })
+
     # --- Phase 2: Chronological simulation with concurrent capital tracking ---
     potential.sort(key=lambda t: t["time"])
     active        = []   # {exit_time, allocated, ticker, entry_idx}
@@ -780,19 +843,68 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
             skipped.append(f"{trade['ticker']}#{trade['trade_num']}(insufficient cash)")
             continue
         if available < trade["allocated"]:
-            # Reallocation: if this is a TAKE signal after the morning window,
-            # sell the worst open position(s) to free up capital
-            if trade["rating"] == "TAKE" and trade["time"] >= REALLOC_MIN_TIME and active:
+            # Reallocation: sell stale/weak open positions to fund a new signal
+            _is_pm_orb = trade.get("signal") == "PM_ORB"
+            _can_trigger = trade["time"] >= REALLOC_MIN_TIME and active
+            if realloc_mode == "baseline":
+                _can_trigger = _can_trigger and trade["rating"] == "TAKE"
+            elif realloc_mode in ("A", "A2"):
+                # MAYBE PM ORBs can also trigger reallocation
+                _can_trigger = _can_trigger and (
+                    trade["rating"] == "TAKE" or (_is_pm_orb and trade["rating"] == "MAYBE"))
+            elif realloc_mode in ("B", "B2"):
+                # PM ORBs (TAKE or MAYBE) can trigger; stale condition replaces PnL% filter
+                _can_trigger = _can_trigger and (
+                    trade["rating"] == "TAKE" or _is_pm_orb)
+            elif realloc_mode in ("C", "C2"):
+                # C: TAKE only; C2: TAKE or MAYBE PM ORB
+                if realloc_mode == "C2":
+                    _can_trigger = _can_trigger and (
+                        trade["rating"] == "TAKE" or (_is_pm_orb and trade["rating"] == "MAYBE"))
+                else:
+                    _can_trigger = _can_trigger and trade["rating"] == "TAKE"
+
+            if _can_trigger:
                 candidates = []
                 for a in active:
                     curr     = _price_at(a["ticker"], trade["time"], ticker_cache)
                     orig     = entries[a["entry_idx"]]["entry"]
                     curr_pct = (curr - orig) / orig * 100
-                    if curr_pct < REALLOC_MAX_PNL_PCT:
-                        candidates.append((curr_pct, a, curr))
-                candidates.sort()  # worst PnL% first
+                    if realloc_mode == "A2" and _is_pm_orb:
+                        # only morning positions (entered before 12:00) are realloc candidates
+                        entry_hhmm = entries[a["entry_idx"]]["time"]
+                        if entry_hhmm < "12:00" and curr_pct < REALLOC_MAX_PNL_PCT:
+                            candidates.append((curr_pct, a["ticker"], a, curr))
+                    elif realloc_mode == "B" and _is_pm_orb:
+                        # stale: open 2+ hours AND below entry price
+                        entry_hhmm = entries[a["entry_idx"]]["time"]
+                        eh, em = int(entry_hhmm[:2]), int(entry_hhmm[3:])
+                        ch, cm = int(trade["time"][:2]), int(trade["time"][3:])
+                        mins_open = (ch * 60 + cm) - (eh * 60 + em)
+                        if mins_open >= 120 and curr_pct < 0:
+                            candidates.append((curr_pct, a["ticker"], a, curr))
+                    elif realloc_mode == "B2" and _is_pm_orb:
+                        # stale: open 90+ min AND below +0.5%
+                        entry_hhmm = entries[a["entry_idx"]]["time"]
+                        eh, em = int(entry_hhmm[:2]), int(entry_hhmm[3:])
+                        ch, cm = int(trade["time"][:2]), int(trade["time"][3:])
+                        mins_open = (ch * 60 + cm) - (eh * 60 + em)
+                        if mins_open >= 90 and curr_pct < REALLOC_MAX_PNL_PCT:
+                            candidates.append((curr_pct, a["ticker"], a, curr))
+                    elif realloc_mode in ("C", "C2") and _is_pm_orb and trade["rating"] == "TAKE":
+                        # TAKE PM ORBs sell up to +2%
+                        if curr_pct < 2.0:
+                            candidates.append((curr_pct, a["ticker"], a, curr))
+                    elif realloc_mode == "C2" and _is_pm_orb and trade["rating"] == "MAYBE":
+                        # MAYBE PM ORBs use standard +0.5% threshold
+                        if curr_pct < REALLOC_MAX_PNL_PCT:
+                            candidates.append((curr_pct, a["ticker"], a, curr))
+                    else:
+                        if curr_pct < REALLOC_MAX_PNL_PCT:
+                            candidates.append((curr_pct, a["ticker"], a, curr))
+                candidates.sort(key=lambda x: (x[0], x[1]))  # worst PnL% first, ticker as tiebreaker
 
-                for _, worst_a, worst_price in candidates:
+                for _, _ticker, worst_a, worst_price in candidates:
                     t = entries[worst_a["entry_idx"]]
                     t["exit"]        = worst_price
                     t["exit_time"]   = trade["time"]
@@ -869,6 +981,9 @@ def run_ex2(trade_date=None, backfill=False, result_file=None):
 
     if not entries:
         print(f"\n  No trades — skipping save.")
+        return exercise
+
+    if not save:
         return exercise
 
     path     = os.path.join(BASE_DIR, filename)

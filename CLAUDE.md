@@ -82,7 +82,7 @@ The system must prove ALL of the following before real money is ever considered:
 ### EX2 — Buy Only with Re-entries + Afternoon Signals, $5,000
 - All rules identical to EX1, plus:
 - **Re-entries**: After a STOP_LOSS or TRAILING_STOP exit, may re-enter the same ticker if a new qualifying ORB signal fires before 13:30; allocation = 75% of original; must wait 5 bars after exit; GAP_GO trades not eligible
-- **PM_ORB**: Post-lunch breakout signal — first 1-min close above the 12:00–12:44 consolidation range high, entries before 13:30, scored TAKE/MAYBE/SKIP same as ORB; SPY relative strength gate applies; same exit rules as ORB
+- **PM_ORB**: Post-lunch breakout signal — first 1-min close above the morning session high (9:30–11:30), entries before 13:30, scored TAKE/MAYBE/SKIP same as ORB; SPY relative strength gate applies; same exit rules as ORB
 - **Afternoon breakout**: From 13:00 onward, first bar with close > morning high AND volume ≥ 50x morning avg triggers a TAKE entry; allocation = 75% of normal TAKE × ATR modifier; time close at 15:30 instead of 14:00
 - **Reallocation**: When a TAKE signal fires after 11:00am and budget is insufficient, sell the worst open position (current PnL% < +0.5%) at market to free capital; marked REALLOC in results
 - **Current status:** Re-entries net slightly negative over 12 days — monitoring at 30-day mark; PM_ORB added May 5, results pending
@@ -172,11 +172,11 @@ Ratings: **TAKE** (score >= 2) | **MAYBE** (score >= 0, volume >= 1.0x) | **SKIP
 - Replaces ORB entirely for that ticker on gap days
 
 ### PM_ORB Signal (EX2 only)
-- Post-lunch consolidation breakout; finds the high of all bars from 12:00–12:44
-- Requires at least 10 bars in the consolidation range to form a valid level
-- Triggers on first 1-min close above that range high, before 13:30 cutoff
-- Scored TAKE/MAYBE/SKIP using the same volume + choppiness logic as ORB
+- Post-lunch breakout; reference level = highest close from 9:30–11:30 (morning session high)
+- Triggers on first 1-min close above that level in the 12:44–13:30 window
+- Scored TAKE/MAYBE/SKIP using the same volume + choppiness logic as ORB; TAKE requires ≥2.0x PM window avg volume
 - SPY relative strength gate applies; same exit rules as morning ORB (time close 14:00)
+- Note: originally used 12:00–12:44 noon range high; switched to morning high May 6, 2026 (+$68.69 over 45 days)
 
 ### Market State
 - **BULL**: SPY pre-market gap ≥ +0.3% AND VIXY trend < +3%

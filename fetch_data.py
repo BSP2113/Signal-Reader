@@ -1614,6 +1614,41 @@ def build_dashboard(assets):
                         "This mirrors the Apr 17 burst-entry pattern. Proposed: cap concurrent open positions "
                         "at 4 to hold cash in reserve for higher-quality post-burst entries.",
         },
+        56: {
+            "title":    "PM_ORB TAKE volume floor — require ≥2.0x PM window avg to earn TAKE rating",
+            "date":     "May 5, 2026",
+            "original": "PM ORB signals were earning TAKE ratings at 1.5x the quiet 12:00–12:44 consolidation "
+                        "window average — but that window is far below morning volume levels, so 1.5x the window "
+                        "average can represent only 0.3–0.5x of normal volume. Thin afternoon volume spikes were "
+                        "receiving full TAKE allocations, producing oversized losses on false breakouts (KOPN Apr 22 "
+                        "-$20.54, SHOP Apr 17 -$5.16, KOPN Apr 16 -$5.97). Proposed: raise the PM ORB TAKE "
+                        "threshold to ≥2.0x the window average; signals between 1.5x–1.99x downgrade to MAYBE.",
+        },
+        59: {
+            "title":    "PM_ORB reference level — morning session high instead of sparse IEX noon range",
+            "date":     "May 6, 2026",
+            "original": "PM ORB was using the 12:00–12:44 consolidation window high as the breakout level. "
+                        "IEX routes very few trades during the lunch hour, making that window sparse and unreliable. "
+                        "The 'range high' was built on thin data, producing noisy signals. "
+                        "Proposed: use the highest close from 9:30–11:30 (morning session high) as the breakout level — "
+                        "well-established, built on high-volume bars, and more meaningful to break.",
+        },
+        57: {
+            "title":    "PM_ORB reallocation Mode A2 — let MAYBE PM ORBs trigger realloc, morning positions only as candidates",
+            "date":     "May 5, 2026",
+            "original": "Baseline reallocation only triggers on TAKE signals. Mode A2 proposed letting MAYBE-rated "
+                        "PM ORB signals also trigger reallocation, while restricting the candidate pool to positions "
+                        "entered before 12:00 (morning-only). Hypothesis: afternoon MAYBE signals have enough conviction "
+                        "to justify selling a stale morning position, without touching other afternoon holds.",
+        },
+        58: {
+            "title":    "PM_ORB reallocation Mode C2 — TAKE PM ORBs can sell up to +2% winners; MAYBE PM ORBs use standard threshold",
+            "date":     "May 5, 2026",
+            "original": "Mode C2 proposed that TAKE-rated PM ORBs be allowed to sell open positions up to +2% gain "
+                        "(vs the baseline +0.5% ceiling) to free capital for high-conviction afternoon signals. "
+                        "MAYBE-rated PM ORBs retain the standard +0.5% candidate threshold. "
+                        "Hypothesis: a strong afternoon TAKE signal is worth giving up a modest morning winner.",
+        },
     }
 
     GROWTH_RESOLUTIONS = {
@@ -2069,6 +2104,50 @@ def build_dashboard(assets):
                        "Apr 24 (+$91.69), Apr 22 (+$68.20) prove MAYBE entries contribute substantially on "
                        "trending days. Dropping them entirely destroys more than it saves.",
              "date": "May 4, 2026"},
+        57: {"reason": "Tested across 28 backfill days and 17 live days (45 total). "
+                       "Baseline: +$205.80 backfill / +$679.27 live / +$885.07 total. "
+                       "Mode A2: +$207.84 backfill / +$656.58 live / +$864.42 total. Net: -$20.65 vs baseline. "
+                       "Barely helped backfill (+$2.04) but hurt live (-$22.69). Win days unchanged at 22/45. "
+                       "Letting MAYBE PM ORBs trigger reallocation against morning-only positions adds noise without "
+                       "improving selection — the morning positions sold to fund MAYBE afternoon signals often recover.",
+             "date": "May 5, 2026"},
+        58: {"reason": "Tested across 28 backfill days and 17 live days (45 total). "
+                       "Baseline: +$205.80 backfill / +$679.27 live / +$885.07 total. "
+                       "Mode C2: +$186.02 backfill / +$615.18 live / +$801.20 total. Net: -$83.87 vs baseline. "
+                       "Hurt both windows. TAKE PM ORBs selling positions up to +2% gain destroys value — "
+                       "those winners were contributing positively, and the afternoon TAKE signals they funded "
+                       "did not compensate for the early exit. Selling a +1.5% open position to chase an afternoon "
+                       "signal is a net negative trade. Baseline realloc (+0.5% ceiling, TAKE-only) is already optimal.",
+             "date": "May 5, 2026"},
+        59: {
+            "what":   "PM_ORB reference level changed from IEX noon range (12:00–12:44) to morning session high (9:30–11:30) in ex2.py",
+            "date":   "May 6, 2026",
+            "detail": "The 12:00–12:44 consolidation window was built on sparse IEX data — the exchange routes very few "
+                      "trades during the lunch hour, making the range high unreliable. Switched to the highest close "
+                      "from 9:30–11:30: a well-established level built on high-volume morning bars. "
+                      "A breakout above the morning session high in the afternoon is a more meaningful signal — "
+                      "the stock is clearing a real intraday resistance level, not a noisy lunch artifact.",
+            "impact": "Tested across 28 backfill days and 17 live days (45 total). "
+                      "noon_range: +$205.80 backfill / +$634.79 live / +$840.59 total. "
+                      "morning_high: +$241.33 backfill / +$667.95 live / +$909.28 total. "
+                      "Net improvement: +$68.69. Fewer signals fired (131 vs 150) but higher quality — "
+                      "win days held at 21/45 while total P&L improved in both windows.",
+        },
+        56: {
+            "what":   "Implemented as PM_ORB_TAKE_FLOOR = 2.0 in ex1.py and ex2.py",
+            "date":   "May 5, 2026",
+            "detail": "PM ORB signals that score TAKE via the standard 1.5x volume threshold are now checked against "
+                      "a secondary floor of 2.0x the PM consolidation window average. Any TAKE signal with vol ratio "
+                      "between 1.5x–1.99x is downgraded to MAYBE before allocation. The standard morning ORB threshold "
+                      "is unchanged — this floor applies only inside find_pm_orb(), where the quiet lunch-window baseline "
+                      "makes the 1.5x bar far too easy to clear. Root cause: 1.8x the PM window average was the vol ratio "
+                      "on all three major TAKE PM ORB failures (KOPN Apr 16, KOPN Apr 22, SHOP Apr 17).",
+            "impact": "Tested across 17 exercise days and 38 backfill days. "
+                      "EX1: +$20.37 exercises, +$40.76 backfill. EX2: +$20.70 exercises, +$33.37 backfill. "
+                      "Net combined across 55 dates: +$115.20. Win/loss record unchanged in both exercises. "
+                      "Primary driver: KOPN Apr 22 TAKE stop (-$20.54) converted to MAYBE (smaller allocation, smaller loss). "
+                      "Apr 6 and Apr 10 also improved from newly-discovered backfill TAKE failures.",
+        },
     }
 
     addressed_idxs = growth_state.get("addressed", [])
