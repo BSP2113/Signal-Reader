@@ -58,7 +58,8 @@ PM_ORB_RANGE_START  = "12:00"  # afternoon consolidation range start
 PM_ORB_RANGE_END    = "12:44"  # afternoon consolidation range end
 PM_ORB_CUTOFF       = "13:30"  # latest allowed PM_ORB entry
 PM_ORB_MIN_BARS     = 10       # minimum bars in range to form valid level
-SPY_BULL       =  0.003   # premarket gap > +0.3% = bullish (matches market_check.py)
+PM_ORB_TAKE_FLOOR   = 2.0      # minimum vol ratio vs PM window avg to earn TAKE; 1.5x earns MAYBE
+SPY_BULL       =  0.004   # premarket gap > +0.4% = bullish (matches market_check.py)
 SPY_BEAR       = -0.005   # premarket gap < -0.5% = bearish
 VIXY_SURGE     =  0.03    # VIXY up >3% = bearish weight
 ALLOC_PCT_BULL = {"TAKE": 0.35, "MAYBE": 0.20}
@@ -80,20 +81,20 @@ def _load_creds():
     return creds["ALPACA_API_KEY"], creds["ALPACA_API_SECRET"]
 
 
-def get_wallet_balance(filename="exercises.json", before_date=None):
-    """Return cumulative portfolio value: $5000 + EX1 P&L up to (not including) before_date."""
+def get_wallet_balance(filename="exercises.json", before_date=None, title_prefix="Exercise 1"):
+    """Return cumulative portfolio value: $5000 + P&L up to (not including) before_date."""
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path):
         return BUDGET
     with open(path) as f:
         data = json.load(f)
-    ex1 = [e for e in data if "Exercise 1" in e["title"]]
+    ex1 = [e for e in data if title_prefix in e["title"]]
     if before_date:
         ex1 = [e for e in ex1 if e["date"] < before_date]
     return round(BUDGET + sum(e["total_pnl"] for e in ex1), 2)
 
 
-def loss_streak_count(trade_date, filename="backfill.json"):
+def loss_streak_count(trade_date, filename="backfill.json", title_prefix="Exercise 1"):
     """Return number of consecutive losing days immediately before trade_date."""
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path):
@@ -101,7 +102,7 @@ def loss_streak_count(trade_date, filename="backfill.json"):
     with open(path) as f:
         data = json.load(f)
     past = sorted(
-        [e for e in data if "Exercise 1" in e["title"] and e["date"] < trade_date],
+        [e for e in data if title_prefix in e["title"] and e["date"] < trade_date],
         key=lambda e: e["date"]
     )
     streak = 0
@@ -113,7 +114,7 @@ def loss_streak_count(trade_date, filename="backfill.json"):
     return streak
 
 
-def drawdown_check(trade_date, filename="backfill.json"):
+def drawdown_check(trade_date, filename="backfill.json", title_prefix="Exercise 1"):
     """Return True if portfolio is >1.5% below its rolling 5-day peak."""
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path):
@@ -121,7 +122,7 @@ def drawdown_check(trade_date, filename="backfill.json"):
     with open(path) as f:
         data = json.load(f)
     past = sorted(
-        [e for e in data if "Exercise 1" in e["title"] and e["date"] < trade_date],
+        [e for e in data if title_prefix in e["title"] and e["date"] < trade_date],
         key=lambda e: e["date"]
     )
     if not past:
@@ -252,6 +253,8 @@ def find_pm_orb(closes, volumes, times, ticker=None, spy_by_time=None):
                     spy_chg  = (spy_now - spy_open) / spy_open if spy_open else 0
                     if ticker_chg <= spy_chg:
                         continue  # was return None — keep scanning after first RS fail
+            if rating == "TAKE" and vr < PM_ORB_TAKE_FLOOR:
+                rating = "MAYBE"
             entry = {"bar": i, "time": times[i], "price": closes[i],
                      "rating": rating, "vol_ratio": round(vr, 1), "signal": "PM_ORB"}
             return (entry, find_exit(closes, times, entry["price"], i, ticker=ticker))
@@ -336,7 +339,7 @@ def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_
     return []
 
 
-def run_ex1(trade_date=None, backfill=False, save=True, result_file=None):
+def run_ex1(trade_date=None, backfill=False, save=True, result_file=None, title="Exercise 1 - Multi-trade"):
     if trade_date is None:
         trade_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -448,17 +451,18 @@ def run_ex1(trade_date=None, backfill=False, save=True, result_file=None):
 
     # Losing streak check: reduce MAYBE allocations after 2+ consecutive losing days
     filename     = result_file or ("backfill.json" if backfill else "exercises.json")
-    streak       = loss_streak_count(trade_date, filename)
+    title_prefix = title.split(" - ")[0]
+    streak       = loss_streak_count(trade_date, filename, title_prefix=title_prefix)
     in_streak    = streak >= STREAK_TRIGGER
     if in_streak:
         print(f"  Losing streak: {streak} consecutive losing days — MAYBE allocations reduced to 50%")
 
     # Drawdown check: cut all allocations 50% if portfolio >1.5% below rolling 5-day peak
-    in_drawdown = drawdown_check(trade_date, filename)
+    in_drawdown = drawdown_check(trade_date, filename, title_prefix=title_prefix)
     if in_drawdown:
         print(f"  Drawdown active — all allocations reduced to 50%")
 
-    starting_balance = get_wallet_balance(filename, before_date=trade_date)
+    starting_balance = get_wallet_balance(filename, before_date=trade_date, title_prefix=title_prefix)
     print(f"  Wallet balance: ${starting_balance:,.2f}")
     entries       = []
     skipped       = []
@@ -661,7 +665,7 @@ def run_ex1(trade_date=None, backfill=False, save=True, result_file=None):
           f"Portfolio EOD: ${round(starting_balance + total_pnl, 2):.2f}")
 
     exercise = {
-        "title":         "Exercise 1 - Multi-trade",
+        "title":         title,
         "date":          trade_date,
         "starting_capital": starting_balance,
         "trades":        entries,

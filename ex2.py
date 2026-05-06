@@ -120,27 +120,27 @@ def _load_creds():
     return creds["ALPACA_API_KEY"], creds["ALPACA_API_SECRET"]
 
 
-def get_wallet_balance(filename="exercises.json", before_date=None):
-    """Return cumulative portfolio value: $5000 + EX2 P&L up to (not including) before_date."""
+def get_wallet_balance(filename="exercises.json", before_date=None, title_prefix="Exercise 2"):
+    """Return cumulative portfolio value: $5000 + P&L up to (not including) before_date."""
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path):
         return BUDGET
     with open(path) as f:
         data = json.load(f)
-    ex2 = [e for e in data if "Exercise 2" in e["title"]]
+    ex2 = [e for e in data if title_prefix in e["title"]]
     if before_date:
         ex2 = [e for e in ex2 if e["date"] < before_date]
     return round(BUDGET + sum(e["total_pnl"] for e in ex2), 2)
 
 
-def loss_streak_count(trade_date, filename):
+def loss_streak_count(trade_date, filename, title_prefix="Exercise 2"):
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path):
         return 0
     with open(path) as f:
         data = json.load(f)
     past = sorted(
-        [e for e in data if "Exercise 2" in e["title"] and e["date"] < trade_date],
+        [e for e in data if title_prefix in e["title"] and e["date"] < trade_date],
         key=lambda e: e["date"]
     )
     streak = 0
@@ -152,14 +152,14 @@ def loss_streak_count(trade_date, filename):
     return streak
 
 
-def drawdown_check(trade_date, filename):
+def drawdown_check(trade_date, filename, title_prefix="Exercise 2"):
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path):
         return False
     with open(path) as f:
         data = json.load(f)
     past = sorted(
-        [e for e in data if "Exercise 2" in e["title"] and e["date"] < trade_date],
+        [e for e in data if title_prefix in e["title"] and e["date"] < trade_date],
         key=lambda e: e["date"]
     )
     if not past:
@@ -465,7 +465,7 @@ def find_afternoon_entry(closes, highs, volumes, times, morning_high, morning_av
     return None
 
 
-def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="baseline", pm_ref="morning_high", save=True):
+def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="baseline", pm_ref="morning_high", save=True, title="Exercise 2 - Re-entry"):
     if trade_date is None:
         trade_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -560,17 +560,18 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
         except Exception:
             pass
 
-    filename    = result_file or ("backfill2.json" if backfill else "exercises.json")
-    streak      = loss_streak_count(trade_date, filename)
-    in_streak   = streak >= STREAK_TRIGGER
-    in_drawdown = drawdown_check(trade_date, filename)
+    filename     = result_file or ("backfill2.json" if backfill else "exercises.json")
+    title_prefix = title.split(" - ")[0]
+    streak       = loss_streak_count(trade_date, filename, title_prefix=title_prefix)
+    in_streak    = streak >= STREAK_TRIGGER
+    in_drawdown  = drawdown_check(trade_date, filename, title_prefix=title_prefix)
 
     if in_streak:
         print(f"  Losing streak: {streak} days — MAYBE allocations reduced to 50%")
     if in_drawdown:
         print(f"  Drawdown active — all allocations reduced to 50%")
 
-    starting_balance = BUDGET if backfill else get_wallet_balance(filename, before_date=trade_date)
+    starting_balance = BUDGET if backfill else get_wallet_balance(filename, before_date=trade_date, title_prefix=title_prefix)
     if not backfill:
         print(f"  Wallet balance: ${starting_balance:,.2f}")
 
@@ -961,7 +962,7 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
         print(f"  Afternoon contribution: ${af_pnl_total:+.2f}")
 
     exercise = {
-        "title":            "Exercise 2 - Re-entry",
+        "title":            title,
         "date":             trade_date,
         "starting_capital": starting_balance,
         "trades":           entries,

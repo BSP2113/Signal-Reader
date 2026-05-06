@@ -524,36 +524,17 @@ PER_DAY_GROWTH = {
     ],
     "2026-05-06": [
         (
-            "SMCI GAP_GO STOP_LOSS (-$62.27) despite 15.27% gap highlights that extreme-gap entries need higher vol threshold for TAKE",
-            "SMCI gapped 15.27%, was rated TAKE at 7.7x vol_ratio, received a $1,952 EX1 allocation, and reversed immediately for "
-            "-$62.27 (STOP_LOSS 09:33, -3.19%) — the session's largest loss. AMD gapped 15.1% with 10.6x vol and hit TAKE_PROFIT by "
-            "09:34 (+$62.54, +3.03%), showing the outcome split is almost entirely determined by whether institutional buying is still "
-            "dominant at the open. At extreme gaps (>12%), the stock is already deeply extended; 1.5x vol is not sufficient conviction — "
-            "only trades with truly exceptional volume confirm the move is continuing rather than exhausting. "
-            "Test: for GAP_GO entries where gap_pct > 12%, raise the TAKE vol_ratio threshold from 1.5x to 10.0x. SMCI at 7.7x would "
-            "have been capped to MAYBE (half the allocation), while AMD at 10.6x would retain its TAKE rating."
+            "SMCI GAP_GO -$62.27: identical setup to AMD winner failed within 2 minutes",
+            "AMD and SMCI both fired GAP_GO TAKE signals at 09:31 with nearly identical gap sizes (+15.1% vs +15.3%) and strong volume (10.6x vs 7.7x) on the same BULL day. AMD hit TAKE_PROFIT at +3% in 3 minutes for +$62.54. SMCI reversed within 2 minutes to STOP_LOSS for -$62.27. The gap size and volume conviction were indistinguishable \u2014 the outcome was determined by what happened in the opening bar itself. SMCI dropped $1.06 almost immediately after entry, suggesting the gap-up open was distributed into, not bought. A bar-quality filter on the entry candle could have blocked SMCI while allowing AMD. Test: For GAP_GO entries on stocks gapping >10%, require the entry bar to close in the upper 40% of its high-low range; if it closes in its lower 60%, treat as SKIP."
         ),
         (
-            "PLTR ORB on -2.47% gap with 1.6x vol spent 90 min stalling then exited NO_PROGRESS for -$8.15 — weak counter-trend setup",
-            "PLTR entered ORB at 10:07 (gap -2.47%, vol_ratio 1.6x, MAYBE rating) and spent the next 90 minutes making no upside "
-            "progress before exiting NO_PROGRESS at 11:37 for -$8.15 (-1.10%) in EX2. A stock opening 2.47% below prior close has a "
-            "strong downward bias; a breakout above the opening range requires outsized buying pressure to overcome that bias, which "
-            "1.6x vol does not provide. TSLA also gapped negative (-1.11%) but had 2.0x vol and ended +1.9%, suggesting the dividing "
-            "line is around 2.0x. "
-            "Test: for ORB signals where gap_pct < -1.5% and vol_ratio < 2.0x, auto-skip or apply a -1 score penalty, preventing "
-            "marginal counter-trend entries that lack sufficient buying conviction to overcome the gap-down bias."
+            "AMD GAP_GO +$62.54 capped at 3% \u2014 10.6x volume and +15.1% gap warranted higher target",
+            "AMD fired a GAP_GO TAKE at 10.6x volume on a +15.1% gap and hit the fixed +3% take profit in just 3 minutes (09:31\u201309:34 exit). A stock gapping 15% with 10.6x opening volume on a BULL day is exhibiting extreme momentum \u2014 this combination rarely exhausts itself at +3%. The current take profit rule treats a 1.5x volume MAYBE the same as a 10.6x volume TAKE on a 15% gap, which is a significant compression of what the signal is actually telling us. Capping at +3% here almost certainly left $40\u2013$80+ on the table. Test: For GAP_GO signals where gap \u226510% AND volume \u22658x, raise the take profit target to +5% and delay trailing stop activation until +2.5% peak (instead of +1%), allowing extreme-conviction gap moves to run further before locking in."
         ),
         (
-            "ARM PM_ORB entry at 13:21 left only 39 min before 14:00 close, producing a TIME_CLOSE loss of -$2.98 with no realistic upside",
-            "ARM triggered a PM_ORB signal at 13:21 with a $457.18 EX2 allocation, but with just 39 minutes until the 14:00 hard close "
-            "it was mathematically nearly impossible to reach the +3% TAKE_PROFIT target. The trade closed at TIME_CLOSE for -$2.98 "
-            "(-0.65%). Other PM_ORB entries today that fired earlier (KOPN 12:46, DELL 12:47, TSLA 12:57, IONQ 13:04) had 56–74 minutes "
-            "of runway and all produced positive or breakeven results; ARM alone entered too late to develop meaningful directional "
-            "momentum before the cutoff forced the exit. "
-            "Test: cap PM_ORB entries at 13:15 (45 minutes before close). Any PM_ORB signal firing after 13:15 is automatically SKIP, "
-            "ensuring remaining entries have at least 45 minutes of runway to develop before the 14:00 hard close."
-        ),
-    ],
+            "IONQ PM_ORB MAYBE at 13:04 \u2014 56-minute window too narrow for sub-TAKE entries",
+            "IONQ fired a PM_ORB MAYBE at 13:04 with 1.9x volume, leaving only 56 minutes before the 14:00 TIME_CLOSE. The trade ended at +1.70% (+$15.58), which is positive but represents poor risk-reward for a MAYBE-rated signal: with less than an hour on the clock, there is no room for early weakness detection (T+45 check), no trailing stop runway, and any adverse move immediately pressures a TIME_CLOSE exit at a loss. KOPN's PM_ORB at 12:46 only managed +1.04% (+$7.11) in its 74-minute window. Both PM_ORB trades were TIME_CLOSE exits rather than momentum-driven ones \u2014 the narrow afternoon window rewards only high-conviction entries. Test: For PM_ORB entries after 13:00, require TAKE rating (\u22652.0x volume); downgrade MAYBE signals in this window to SKIP and log the reason as 'PM_ORB_LATE_MAYBE'."
+        )    ],
 }
 
 # Links each per-day note to its improvement pool index (one entry per note in the list).
@@ -577,8 +558,43 @@ PER_DAY_GROWTH_IDX = {
     "2026-05-01": [46, None, None],    # note 1 → GAP_GO T+30 no-progress → not pursuing
     "2026-05-04": [52, 53, 54],        # note 1 → neg-gap 2x filter → not pursuing | note 2 → neg-gap score penalty → not pursuing | note 3 → burst entry cap → not pursuing
     "2026-05-05": [None, None, None],  # note 1 → ARM first-bar GAP_GO block | note 2 → flat-gap re-entry block | note 3 → flat-gap ORB score penalty
-    "2026-05-06": [None, None, None],  # note 1 → extreme-gap TAKE threshold | note 2 → neg-gap low-vol ORB skip | note 3 → PM_ORB late-entry cutoff
+    "2026-05-06": [None, None, None],
 }
+
+# Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
+PER_DAY_GROWTH_EX2 = {
+    "2026-05-06": [
+        (
+            "PM_ORB Late Entries Leave No Room to Develop",
+            "ARM fired PM_ORB at 13:21 with only 39 minutes until the 14:00 hard close, losing $2.98 (-0.65%). TSLA fired at 12:57 with 63 minutes and made just $1.32 (+0.15%) \u2014 barely above noise after spread and slippage. Both were MAYBE signals that had no room to build momentum before the time close cut them. The current 12:44\u201313:30 window allows entries with as little as 30 minutes of runway, which is structurally too short for a MAYBE-grade signal. DELL (12:47, +$11.14) and KOPN (12:46, +$3.62) both entered early in the window and had 70+ minutes \u2014 those were the only PM_ORBs that moved meaningfully. Test: Tighten PM_ORB entry cutoff from 13:30 to 13:10 for MAYBE signals specifically, leaving TAKE-rated signals eligible through 13:30 since higher volume conviction warrants more risk on a shorter window."
+        ),
+        (
+            "PM_ORB Re-Exposure to Morning Stop-Loss Tickers Doesn't Recover the Loss",
+            "IONQ was stopped out at 11:04 (-$8.09, -1.73%), then re-entered via PM_ORB at 13:04 and made +$7.92 (+1.70%). Net IONQ P&L for the day: -$0.17. The PM_ORB partially healed the wound but didn't close it, and it consumed capital that could have gone to a fresh ticker. A morning STOP_LOSS means price rejected at the ORB level and couldn't hold above it \u2014 PM_ORB re-entering the same name at a higher reference level (morning session high) is asking a ticker that already failed once to now break above an even harder level. When it works, you're nearly back to breakeven; when it fails, you've doubled down on a weak ticker. Today it technically worked but left IONQ net negative. Test: Exclude tickers from PM_ORB eligibility if they exited the morning session via STOP_LOSS. Allow TRAILING_STOP and TIME_CLOSE exits to remain PM_ORB eligible, since those reflect different failure modes."
+        ),
+        (
+            "PM_ORB Performs Best on Tickers with Confirmed Morning Momentum",
+            "Today's two strongest PM_ORB trades \u2014 DELL #2 (+$11.14) and KOPN #2 (+$3.62) \u2014 both followed morning TAKE_PROFIT exits, meaning the ticker had already proven it could trend cleanly intraday. DELL hit TAKE_PROFIT at 12:18 and then broke the morning high again at 12:47, producing the biggest PM_ORB gain of the day. ARM had no morning trade at all and fired PM_ORB at 13:21 with no intraday momentum context \u2014 it lost $2.98. TSLA had a morning ORB that just drifted to TIME_CLOSE without any real directional push, and its PM_ORB returned a near-flat +$1.32. The pattern: tickers that demonstrated conviction in the morning (TAKE_PROFIT) gave PM_ORB a meaningful edge; tickers with weak or absent morning context produced marginal or negative results. Test: Upgrade PM_ORB signals from MAYBE to TAKE on tickers that hit TAKE_PROFIT in the morning session, and apply a SKIP filter to PM_ORB MAYBE signals on tickers with no morning trade. This concentrates PM_ORB capital on confirmed momentum names."
+        )
+    ],
+}
+
+# Per-day Claude's Notes for Exercise 3 (hybrid routing analysis)
+PER_DAY_GROWTH_EX3 = {
+    "2026-05-06": [
+        (
+            "BULL routing validated, but amplification risk exposed on multi-gap days",
+            "The BULL classification fired correctly \u2014 AMD (+15.1% gap, TAKE_PROFIT +$64.05), ASTS (+4.2% gap, TAKE_PROFIT +$39.49), and DELL (TAKE_PROFIT +$55.83) all behaved like a genuine bull day, confirming SPY gap \u22650.3% was the right threshold call. However, SMCI (+15.3% gap, STOP_LOSS -$63.77) illustrates that BULL mode's 35% TAKE allocation amplifies losses symmetrically with gains. On days where 2+ tickers are gapping >10%, the BULL routing is essentially betting that most of those high-gap entries succeed. Today it paid off (+$178.65 total), but the SMCI loss nearly erased AMD's win alone. The routing had no mechanism to distinguish 'legitimate bull tape' from 'high-gap volatility day that could go either way.' Test: When 3+ tickers in the watchlist gap >8% on a BULL day, apply a 'gap storm' modifier that caps TAKE allocation at 28% (halfway between BULL 35% and NEUT 30%) for GAP_GO signals only, preserving the BULL edge for ORB signals while reducing exposure on the riskiest entries."
+        ),
+        (
+            "EX1 routing avoided SMCI re-entry risk \u2014 structural win for gap-stop scenarios",
+            "SMCI triggered a STOP_LOSS at 09:33 after a +15.3% gap entry. In EX2, a re-entry would have been eligible after 5 bars (09:38+) if a new ORB signal fired. Given SMCI's violent early move \u2014 entry $33.23, stop at $32.17 within 2 minutes \u2014 a re-entry attempt would have been high-risk: the ticker was in a gap-exhaustion pattern, not a clean ORB setup. The EX1 routing's structural absence of re-entries meant the $63.77 loss was locked and capital redeployed implicitly to later ORB signals (NVDA, RIVN, TSLA all entered 09:45\u201309:49). EX2's $62.14 shortfall today is likely partly attributable to re-entry logic on a day where gap-and-stall behavior punished second attempts. Test: Add a routing sub-rule \u2014 on BULL days where a GAP_GO STOP_LOSS exits before 09:45, flag that ticker as re-entry ineligible for the remainder of the session regardless of EX1/EX2 mode; apply this in EX2 as well, since GAP_GO stop losses before the ORB window opens represent gap exhaustion, not signal failure."
+        ),
+        (
+            "PM_ORB running inside EX1 mode blurs routing comparison \u2014 needs explicit mode definition",
+            "EX3 routed to EX1 mode, yet KOPN #2 (PM_ORB, +$7.29) and IONQ #2 (PM_ORB, +$15.95) appear in the trade list \u2014 $23.24 combined. PM_ORB is defined as an EX2-only feature in the current spec. If EX3's 'EX1 mode' is actually running PM_ORB signals, then the $62.14 routing advantage over EX2 is not a clean EX1-vs-EX2 comparison \u2014 it may include the benefit of PM_ORB without the drag of EX2's re-entries or reallocation. This muddies attribution: did EX1 routing win because allocations were better, because re-entries were avoided, or because PM_ORB added $23.24 that a true EX1 would not have had? Today the PM_ORB trades were modest winners, but on a day where PM_ORB loses, this ambiguity could mask whether the routing decision itself was correct. Test: Define EX3's EX1 mode explicitly \u2014 either PM_ORB runs in both modes (making EX3 a 'routing between allocation regimes') or PM_ORB is EX2-mode-only (making EX3 a true EX1/EX2 switch); log which PM_ORB trades were 'EX2-only adds' vs 'EX3 always-on' so routing P&L comparisons isolate the allocation decision from the signal-set decision."
+        )
+    ],}
 
 def load_growth_state():
     path = os.path.join(BASE_DIR, "growth_state.json")
@@ -990,6 +1006,14 @@ def build_dashboard(assets):
 
         return "".join(f"<p class='notes-text'>{p}</p>" for p in parts)
 
+    def simple_notes_html(date, growth_dict):
+        ops = growth_dict.get(date)
+        if not ops:
+            return "<p class='notes-text'>No notes written yet.</p>"
+        items = "".join(f"<li><strong>{title}:</strong> {body}</li>" for title, body in ops)
+        return (f"<p class='notes-text'>Growth opportunities:"
+                f"<ul style='margin:6px 0 0 0;padding-left:18px'>{items}</ul></p>")
+
     def cumulative_summary(exs):
         total = round(sum(e["total_pnl"] for e in exs), 2)
         days  = len(exs)
@@ -1001,6 +1025,7 @@ def build_dashboard(assets):
     all_dates   = sorted(ex1_by_date.keys(), reverse=True)
 
     ex2_by_date = {e["date"]: e for e in exercises if "Exercise 2" in e["title"]}
+    ex3_by_date = {e["date"]: e for e in exercises if "Exercise 3" in e["title"]}
 
     growth_state  = load_growth_state()
     addressed_set = set(growth_state.get("addressed", []))
@@ -1026,9 +1051,12 @@ def build_dashboard(assets):
         ex2_matched = [ex2_by_date[d] for d in all_dates if d in ex2_by_date]
         re_total = sum(t["pnl"] for e in ex2_matched for t in e["trades"] if t["trade_num"] == 2)
         re_extra = f'<br><span class="ex-stat-re">↩ re-entries: ${re_total:+.2f}</span>' if ex2_matched else ""
+        ex3_list  = sorted(ex3_by_date.values(), key=lambda e: e["date"])
+        ex3_extra = f'<br><span class="ex-stat-re">BULL→EX1 / NEUT·BEAR→EX2</span>' if ex3_list else ""
         comparison_strip = (f'<div class="ex-compare-strip">'
                             f'{stat_card("Exercise 1 — ORB", ex1_list, "#4f8ef7")}'
                             f'{stat_card("Exercise 2 — Re-entry", ex2_matched, "#a78bfa", re_extra)}'
+                            f'{stat_card("Exercise 3 — Hybrid", ex3_list, "#34d399", ex3_extra)}'
                             f'</div>')
 
         # --- EX1 day blocks ---
@@ -1074,9 +1102,10 @@ def build_dashboard(assets):
             badge = (f'<span class="day-badge {"pnl-win" if pnl2 >= 0 else "pnl-loss"}">{pnl2:+.2f}</span>'
                      if pnl2 is not None else '')
             re_tag = f'<span class="re-day-badge">{re_c} RE</span>' if re_c else ''
-            ex2_block = build_ex2_table(ex2) if ex2 else ""
-            expanded  = "block" if i == 0 else "none"
-            arrow     = "▼" if i == 0 else "▶"
+            ex2_block   = build_ex2_table(ex2) if ex2 else ""
+            ex2_notes   = simple_notes_html(date, PER_DAY_GROWTH_EX2)
+            expanded    = "block" if i == 0 else "none"
+            arrow       = "▼" if i == 0 else "▶"
             ex2_blocks += f"""
             <div class="day-block">
                 <div class="day-toggle" onclick="toggleDay(this)">
@@ -1087,6 +1116,48 @@ def build_dashboard(assets):
                 </div>
                 <div class="day-body" style="display:{expanded}">
                     {ex2_block}
+                    <div class="notes-section">
+                        <div class="notes-header" onclick="toggleNotes(this)">
+                            <span class="notes-arrow">▶</span> Claude's Notes
+                        </div>
+                        <div class="notes-body" style="display:none">{ex2_notes}</div>
+                    </div>
+                </div>
+            </div>"""
+
+        # --- EX3 day blocks ---
+        ex3_dates_desc = sorted(ex3_by_date.keys(), reverse=True)
+        ex3_blocks = ""
+        for i, date in enumerate(ex3_dates_desc):
+            ex3      = ex3_by_date[date]
+            pnl3     = ex3["total_pnl"]
+            mode     = "EX1" if ex3.get("market_state") == "bullish" else "EX2"
+            mode_color = "#4f8ef7" if mode == "EX1" else "#a78bfa"
+            badge    = f'<span class="day-badge {"pnl-win" if pnl3 >= 0 else "pnl-loss"}">{pnl3:+.2f}</span>'
+            mode_tag = f'<span class="re-day-badge" style="background:{mode_color}22;color:{mode_color};border-color:{mode_color}44">{mode}</span>'
+            re_c     = ex3.get("reentry_count", 0)
+            re_tag   = f'<span class="re-day-badge">{re_c} RE</span>' if re_c else ''
+            ex3_block   = build_ex2_table(ex3)
+            ex3_notes   = simple_notes_html(date, PER_DAY_GROWTH_EX3)
+            expanded    = "block" if i == 0 else "none"
+            arrow       = "▼" if i == 0 else "▶"
+            ex3_blocks += f"""
+            <div class="day-block">
+                <div class="day-toggle" onclick="toggleDay(this)">
+                    <span class="day-arrow">{arrow}</span>
+                    <span class="day-label-text">{date}</span>
+                    {badge}
+                    {mode_tag}
+                    {re_tag}
+                </div>
+                <div class="day-body" style="display:{expanded}">
+                    {ex3_block}
+                    <div class="notes-section">
+                        <div class="notes-header" onclick="toggleNotes(this)">
+                            <span class="notes-arrow">▶</span> Claude's Notes
+                        </div>
+                        <div class="notes-body" style="display:none">{ex3_notes}</div>
+                    </div>
                 </div>
             </div>"""
 
@@ -1185,9 +1256,11 @@ def build_dashboard(assets):
                 <div class="ex-tab-row">
                     <button class="ex-tab-btn active" id="btn-ex1" onclick="switchEx(1)">Exercise 1 — ORB</button>
                     <button class="ex-tab-btn" id="btn-ex2" onclick="switchEx(2)">Exercise 2 — Re-entry</button>
+                    <button class="ex-tab-btn" id="btn-ex3" onclick="switchEx(3)">Exercise 3 — Hybrid</button>
                 </div>
                 <div id="ex1-panel"><div class="pnl-tracker">{ex1_blocks}</div></div>
                 <div id="ex2-panel" style="display:none"><div class="pnl-tracker">{ex2_blocks}</div></div>
+                <div id="ex3-panel" style="display:none"><div class="pnl-tracker">{ex3_blocks}</div></div>
             </div>
             <div id="pnl-breakdown-view" style="display:none;padding-top:8px">{stats_html}</div>
         </div>
@@ -2563,10 +2636,13 @@ def build_dashboard(assets):
 
     ex1_entries    = [e for e in exercises if "Exercise 1" in e["title"]]
     ex2_entries    = [e for e in exercises if "Exercise 2" in e["title"]]
+    ex3_entries    = [e for e in exercises if "Exercise 3" in e["title"]]
     wallet1        = round(5000 + sum(e["total_pnl"] for e in ex1_entries), 2)
     wallet2        = round(5000 + sum(e["total_pnl"] for e in ex2_entries), 2)
+    wallet3        = round(5000 + sum(e["total_pnl"] for e in ex3_entries), 2)
     w1_color       = "#4caf50" if wallet1 >= 5000 else "#f44336"
     w2_color       = "#4caf50" if wallet2 >= 5000 else "#f44336"
+    w3_color       = "#4caf50" if wallet3 >= 5000 else "#f44336"
     wallet_html    = (
         f'<div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right">'
         f'<div>'
@@ -2576,6 +2652,10 @@ def build_dashboard(assets):
         f'<div>'
         f'<span style="font-size:0.72em;color:#666;letter-spacing:0.04em;text-transform:uppercase">Wallet 2&nbsp;</span>'
         f'<span style="font-size:1.05em;font-weight:bold;color:{w2_color}">${wallet2:,.2f}</span>'
+        f'</div>'
+        f'<div>'
+        f'<span style="font-size:0.72em;color:#666;letter-spacing:0.04em;text-transform:uppercase">Wallet 3&nbsp;</span>'
+        f'<span style="font-size:1.05em;font-weight:bold;color:{w3_color}">${wallet3:,.2f}</span>'
         f'</div>'
         f'</div>'
     )
@@ -2992,8 +3072,10 @@ def build_dashboard(assets):
         function switchEx(n) {{
             document.getElementById('ex1-panel').style.display = n === 1 ? 'block' : 'none';
             document.getElementById('ex2-panel').style.display = n === 2 ? 'block' : 'none';
+            document.getElementById('ex3-panel').style.display = n === 3 ? 'block' : 'none';
             document.getElementById('btn-ex1').classList.toggle('active', n === 1);
             document.getElementById('btn-ex2').classList.toggle('active', n === 2);
+            document.getElementById('btn-ex3').classList.toggle('active', n === 3);
         }}
 
         function switchPnlTop(name) {{
