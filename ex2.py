@@ -39,6 +39,13 @@ from alpaca.data.timeframe import TimeFrame
 
 TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "SNDK", "DELL", "KOPN",
                "SHOP", "ASTS", "ARM", "DKNG", "UPST"]
+TICKER_START = {
+    "KOPN":  "2026-04-28",
+    "CRDO":  "2026-04-28",
+    "DELL":  "2026-05-02",
+    "UPST":  "2026-05-03",
+    "SNDK":  "2026-05-07",
+}
 BUDGET      = 5000.0
 ORB_BARS    = 15
 ORB_CUTOFF  = "11:30"
@@ -602,6 +609,9 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
     ticker_cache = {}   # stores bar data for the afternoon scan
 
     for ticker in TICKERS:
+        if TICKER_START.get(ticker, "0000-00-00") > trade_date:
+            skipped.append(f"{ticker}(not active)")
+            continue
         print(f"  Analyzing {ticker}...")
 
         if ticker in _cached_bars:
@@ -765,6 +775,8 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
 
     # --- Afternoon scans (all tickers, independent of morning trades) ---
     for ticker in TICKERS:
+        if TICKER_START.get(ticker, "0000-00-00") > trade_date:
+            continue
         if ticker not in ticker_cache:
             continue
         d        = ticker_cache[ticker]
