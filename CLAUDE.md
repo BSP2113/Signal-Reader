@@ -123,7 +123,7 @@ venv/bin/python3 run.py
 Then open `dashboard.html` in your browser.
 
 ### Tickers
-**NVDA, TSLA, AMD, COIN, META, PLTR, SMCI, CRDO, IONQ, RIVN, DELL, KOPN, SHOP, ASTS, ARM, DKNG, UPST** — 17 high-volatility, high-volume names.
+**NVDA, TSLA, AMD, COIN, META, PLTR, SMCI, CRDO, IONQ, SNDK, DELL, KOPN, SHOP, ASTS, ARM, DKNG, UPST** — 17 high-volatility, high-volume names.
 - BBAI removed: 0% win rate over 12 tracked days, worst P&L in pool
 - NFLX removed: 0% win rate over 12 tracked days, second worst P&L
 - KOPN added Apr 28, 2026 — low-priced ($2–4), ATR modifier ~0.57–0.77x
@@ -133,6 +133,8 @@ Then open `dashboard.html` in your browser.
 - RKLB removed May 3, 2026 — 29% win rate, -$23.61 over 17 trades; chronic underperformer, already excluded from GAP_GO
 - UPST added May 3, 2026 — 62% win rate, +$63.75 over 8 trades in 30-day backtest; positive expectancy ($17.49 avg win vs $7.90 avg loss)
 - RDDT removed May 3, 2026 — 21% win rate, 14 trades; P&L almost entirely from one $33.97 outlier trade; two replacement batches tested (HIMS best at 41% WR — no replacement cleared threshold)
+- RIVN removed May 6, 2026 — 33% WR live, 30% WR backfill; chronic underperformer
+- SNDK added May 6, 2026 — 48% WR overall, 60% WR in live window; avg win +$18.71 vs avg loss -$3.93 (4.8:1 ratio); +$203.98 net improvement over 46-day backtest vs RIVN
 - No crypto tickers — MSTR, MARA, RIOT, ETHA considered and declined (additional tax filing requirements)
 
 ### Dashboard Features
@@ -208,9 +210,10 @@ Ratings: **TAKE** (score >= 2) | **MAYBE** (score >= 0, volume >= 1.0x) | **SKIP
 After each trading day's results are logged, the following MUST be completed before the day is considered closed. This is non-negotiable.
 
 1. **Write three growth ops** for the day in `PER_DAY_GROWTH` in `fetch_data.py` — one entry per growth opportunity as a `(title, detail)` tuple under the day's date key.
-2. **Add the date to `PER_DAY_GROWTH_IDX`** with `[None, None, None]` as placeholders.
+2. **Add the date to `PER_DAY_GROWTH_IDX`** with `[None, None, None]` as placeholders. This automatically surfaces all three in the **Untested** tab of the Improvements panel — no extra steps needed.
 3. Growth ops must be specific to that day's actual trades — use real ticker names, dollar amounts, entry/exit times, and exit reasons. No generic observations.
 4. Each growth op should identify a testable change to the model. The day is **not closed** until all three are written.
+5. When a growth op from the Untested tab gets tested and filed (Revisit, Shipped, or Not Pursuing), update its index in `PER_DAY_GROWTH_IDX` from `None` to the pool index number so it disappears from Untested automatically.
 
 If you open a session and today's date is missing from `PER_DAY_GROWTH`, write the growth ops immediately before doing anything else.
 

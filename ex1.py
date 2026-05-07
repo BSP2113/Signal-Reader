@@ -25,7 +25,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
-TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "RIVN", "DELL", "KOPN",
+TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "SNDK", "DELL", "KOPN",
                "SHOP", "ASTS", "ARM", "DKNG", "UPST"]
 BUDGET      = 5000.0
 ORB_BARS    = 15
@@ -40,6 +40,8 @@ GAP_FILTER          = 0.04   # skip ORB if ticker gaps >4% vs prior close
 GAP_GO_THRESH       = 0.03   # positive gap >= 3% qualifies for gap-and-go
 GAP_GO_WINDOW       = "09:39"  # scan only the first 10 minutes for gap-and-go
 GAP_GO_SKIP_TICKERS = set()
+LARGE_GAP_THRESH         = 0.10   # gap >= 10% triggers confirm-bar exit check
+GAP_CONFIRM_BAR_MIN_POS  = 0.60   # bar after entry must close in upper 40% of range
 ATR_DAYS    = 14     # lookback for ATR calculation
 ATR_MIN_MOD    = 0.40   # never allocate below 40% of base
 ATR_MAX_MOD    = 1.50   # never allocate above 150% of base
@@ -173,7 +175,8 @@ def score_signal(closes_so_far, vol, avg_volume):
     else:            return "SKIP",  vol_ratio
 
 
-def find_exit(closes, times, entry_price, entry_bar, ticker=None):
+def find_exit(closes, times, entry_price, entry_bar, ticker=None,
+              highs=None, lows=None, large_gap=False):
     peak         = entry_price
     consec_above = 0       # consecutive closes >= entry+1% (trail arm requires 2)
     trail_armed  = False
@@ -187,6 +190,15 @@ def find_exit(closes, times, entry_price, entry_bar, ticker=None):
     for i in range(entry_bar + 1, len(closes)):
         price    = closes[i]
         bar_mins = int(times[i][:2]) * 60 + int(times[i][3:])
+
+        # Large-gap confirm bar: if the bar right after entry closes in the lower
+        # 40% of its high-low range, exit immediately — gap momentum has already failed.
+        if large_gap and i == entry_bar + 1 and highs and lows:
+            bar_range = highs[i] - lows[i]
+            if bar_range > 0:
+                close_pos = (price - lows[i]) / bar_range
+                if close_pos < GAP_CONFIRM_BAR_MIN_POS:
+                    return {"bar": i, "time": times[i], "price": price, "reason": "CONFIRM_BAR_EXIT"}
         peak     = max(peak, price)
 
         # Require 2 consecutive closes above entry+1% before arming the trail.
@@ -304,7 +316,9 @@ def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_
                             return []
                 entry = {"bar": i, "time": times[i], "price": closes[i],
                          "rating": rating, "vol_ratio": round(vr, 1), "signal": "GAP_GO"}
-                return [(entry, find_exit(closes, times, entry["price"], i, ticker=ticker))]
+                large_gap = gap_pct >= LARGE_GAP_THRESH
+                return [(entry, find_exit(closes, times, entry["price"], i, ticker=ticker,
+                                         highs=highs, lows=lows, large_gap=large_gap))]
         return []
 
     if skip_orb:
@@ -321,6 +335,11 @@ def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_
                 # first breakouts before 10am are crowded fakeouts, not real momentum.
                 # MAYBE signals before 10:00 are unaffected (positive net across both datasets).
                 if rating == "TAKE" and times[i] < "10:00":
+                    continue
+                # Post-11:00 ORB TAKE signals are 0W/3L across 55 days (-$24.03).
+                # By 11:00 the opening range momentum has dissipated; late TAKE breakouts
+                # lack the early-session directional conviction that makes ORB entries work.
+                if rating == "TAKE" and times[i] >= "11:00":
                     continue
                 if spy_by_time and day_open:
                     ticker_chg = (closes[i] - day_open) / day_open

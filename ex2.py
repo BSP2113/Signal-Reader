@@ -37,7 +37,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
-TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "RIVN", "DELL", "KOPN",
+TICKERS     = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "SNDK", "DELL", "KOPN",
                "SHOP", "ASTS", "ARM", "DKNG", "UPST"]
 BUDGET      = 5000.0
 ORB_BARS    = 15
@@ -56,6 +56,8 @@ GAP_FILTER          = 0.04
 GAP_GO_THRESH       = 0.03   # positive gap >= 3% qualifies for gap-and-go
 GAP_GO_WINDOW       = "09:39"  # scan only the first 10 minutes for gap-and-go
 GAP_GO_SKIP_TICKERS = set()
+LARGE_GAP_THRESH         = 0.10   # gap >= 10% triggers confirm-bar exit check
+GAP_CONFIRM_BAR_MIN_POS  = 0.60   # bar after entry must close in upper 40% of range
 ATR_DAYS       = 14
 ATR_MIN_MOD    = 0.40
 ATR_MAX_MOD    = 1.50
@@ -203,7 +205,8 @@ def score_signal(closes_so_far, vol, avg_volume):
     else:            return "SKIP",  vol_ratio
 
 
-def find_exit(closes, times, entry_price, entry_bar, ticker=None, time_close=None, rating=None):
+def find_exit(closes, times, entry_price, entry_bar, ticker=None, time_close=None, rating=None,
+              highs=None, lows=None, large_gap=False):
     if time_close is None:
         time_close = ENTRY_CLOSE
     peak         = entry_price
@@ -220,6 +223,15 @@ def find_exit(closes, times, entry_price, entry_bar, ticker=None, time_close=Non
         price    = closes[i]
         bar_mins = int(times[i][:2]) * 60 + int(times[i][3:])
         peak     = max(peak, price)
+
+        # Large-gap confirm bar: if the bar right after entry closes in the lower
+        # 40% of its high-low range, exit immediately — gap momentum has already failed.
+        if large_gap and i == entry_bar + 1 and highs and lows:
+            bar_range = highs[i] - lows[i]
+            if bar_range > 0:
+                close_pos = (price - lows[i]) / bar_range
+                if close_pos < GAP_CONFIRM_BAR_MIN_POS:
+                    return {"bar": i, "time": times[i], "price": price, "reason": "CONFIRM_BAR_EXIT"}
 
         # Require 2 consecutive closes above entry+1% before arming the trail.
         # Prevents single-bar spikes from triggering the trail lock prematurely.
@@ -290,7 +302,7 @@ def find_orb_entry(closes, volumes, times, spy_by_time, ticker=None):
     return None
 
 
-def find_gap_go_entry(closes, highs, volumes, times, spy_by_time, ticker=None):
+def find_gap_go_entry(closes, highs, lows, volumes, times, spy_by_time, ticker=None, gap_pct=0.0):
     """Return (entry, exit) for a gap-and-go signal (first 10 min), or None."""
     if not closes:
         return None
@@ -317,7 +329,9 @@ def find_gap_go_entry(closes, highs, volumes, times, spy_by_time, ticker=None):
                         return None
             entry = {"bar": i, "time": times[i], "price": closes[i],
                      "rating": rating, "vol_ratio": round(vr, 1), "signal": "GAP_GO"}
-            exit_ = find_exit(closes, times, entry["price"], entry["bar"], ticker=ticker, rating=rating)
+            large_gap = gap_pct >= LARGE_GAP_THRESH
+            exit_ = find_exit(closes, times, entry["price"], entry["bar"], ticker=ticker, rating=rating,
+                              highs=highs, lows=lows, large_gap=large_gap)
             return (entry, exit_)
     return None
 
@@ -478,15 +492,22 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
     end_dt   = datetime.strptime(next_day,   "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
     _cache        = _load_day_cache(trade_date)
-    _cache_miss   = _cache is None
+    # Treat cache as missing if any ticker entry lacks 'lows' (needed for confirm-bar check)
+    _cache_stale  = (_cache is not None and
+                     any("lows" not in v for v in _cache.get("tickers", {}).values()))
+    # Also treat as stale if any current ticker is missing from the cache (e.g. newly added ticker)
+    if _cache is not None and not _cache_stale:
+        _cached_ticker_set = set(_cache.get("tickers", {}).keys())
+        _cache_stale = any(t not in _cached_ticker_set for t in TICKERS)
+    _cache_miss   = _cache is None or _cache_stale
     prior_closes  = _cache["prior_closes"]  if _cache else {}
     atr_pcts      = _cache["atr_pcts"]      if _cache else {}
     spy_by_time   = _cache["spy_by_time"]   if _cache else {}
-    _cached_bars  = _cache["tickers"]       if _cache else {}
+    _cached_bars  = _cache["tickers"]       if (_cache and not _cache_stale) else {}
     _new_bars     = {}   # populated during ticker loop on cache miss
 
+    client = StockHistoricalDataClient(api_key=key, secret_key=secret)
     if _cache_miss:
-        client = StockHistoricalDataClient(api_key=key, secret_key=secret)
         prior_daily = client.get_stock_bars(StockBarsRequest(
             symbol_or_symbols=TICKERS, timeframe=TimeFrame.Day,
             start=start_dt - timedelta(days=21), end=start_dt, feed="iex",
@@ -586,6 +607,7 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
         if ticker in _cached_bars:
             closes  = _cached_bars[ticker]["closes"]
             highs   = _cached_bars[ticker]["highs"]
+            lows    = _cached_bars[ticker]["lows"]
             volumes = _cached_bars[ticker]["volumes"]
             times   = _cached_bars[ticker]["times"]
         else:
@@ -607,9 +629,10 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
 
             closes  = [round(float(v), 2) for v in today["close"].tolist()]
             highs   = [round(float(v), 2) for v in today["high"].tolist()]
+            lows    = [round(float(v), 2) for v in today["low"].tolist()]
             volumes = [int(v) for v in today["volume"].tolist()]
             times   = [t.strftime("%H:%M") for t in today.index]
-            _new_bars[ticker] = {"closes": closes, "highs": highs, "volumes": volumes, "times": times}
+            _new_bars[ticker] = {"closes": closes, "highs": highs, "lows": lows, "volumes": volumes, "times": times}
 
         # Cache full bar data for afternoon scan (runs after main loop)
         morning_vols  = [v for v, t in zip(volumes, times) if t < AFTERNOON_SCAN_START]
@@ -632,7 +655,7 @@ def run_ex2(trade_date=None, backfill=False, result_file=None, realloc_mode="bas
 
         # Gap-and-go: positive gap >= 3%, scan first 10 min (no re-entry for gap-and-go)
         if gap_pct >= GAP_GO_THRESH and ticker not in GAP_GO_SKIP_TICKERS:
-            gag = find_gap_go_entry(closes, highs, volumes, times, spy_by_time, ticker=ticker)
+            gag = find_gap_go_entry(closes, highs, lows, volumes, times, spy_by_time, ticker=ticker, gap_pct=gap_pct)
             if not gag:
                 skipped.append(f"{ticker}(gap-go-no-signal)")
                 continue

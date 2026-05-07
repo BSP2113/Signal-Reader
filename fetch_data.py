@@ -13,7 +13,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
-TICKERS  = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "RIVN", "DELL", "KOPN",
+TICKERS  = ["NVDA", "TSLA", "AMD", "COIN", "META", "PLTR", "SMCI", "CRDO", "IONQ", "SNDK", "DELL", "KOPN",
             "SHOP", "ASTS", "ARM", "DKNG", "UPST"]
 ET       = "America/New_York"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -541,42 +541,28 @@ PER_DAY_GROWTH = {
 # None means the note has no linked pool item and is always visible.
 # When an index is in addressed or rejected, that individual note is suppressed.
 PER_DAY_GROWTH_IDX = {
-    "2026-04-13": [49, None, 50],       # note 1 → GAP_GO high-vol tiered exit → not pursuing | note 2 → late TAKE allocation scrutiny | note 3 → TSLA per-ticker → not pursuing
+    "2026-04-13": [49, 71, 50],         # note 1 → GAP_GO high-vol tiered exit → not pursuing | note 2 → late TAKE block after 11:00 → shipped | note 3 → TSLA per-ticker → not pursuing
     "2026-04-14": [32, 40, 46],        # note 1 → low-vol MAYBE filter → rejected | note 2 → GAP_GO flat T+20 gate → rejected | note 3 → GAP_GO T+60 no-progress → not pursuing
-    "2026-04-15": [33, None, None],    # note 1 → trail lock 1.5% → rejected
-    "2026-04-16": [26, 45, None],      # note 1 → no-progress exit → shipped | note 2 → pre-10:00 TAKE block → shipped
-    "2026-04-17": [29, None, 43],      # note 1 → entry burst cap → rejected | note 3 → 2-bar trail lock → shipped
-    "2026-04-20": [None, None, None],   # note 1 → zero-TP TIME_CLOSE observation | note 2 → late entry timing | note 3 → trail width on slow days
+    "2026-04-15": [33, None, 65],      # note 1 → trail lock 1.5% → rejected | note 3 → scaled day limit → not pursuing (Rule 3, $0 change)
+    "2026-04-16": [26, 45, 68],        # note 1 → no-progress exit → shipped | note 2 → pre-10:00 TAKE block → shipped | note 3 → wide-spread observation → filed
+    "2026-04-17": [29, 68, 43],        # note 1 → entry burst cap → rejected | note 2 → NO_PROGRESS observation → filed | note 3 → 2-bar trail lock → shipped
+    "2026-04-20": [68, 68, None],      # note 1 → zero-TP observation → filed | note 2 → late entry observation → filed | note 3 → wider trail on slow days (needs re-sim)
     "2026-04-21": [29, 43, 41],        # note 1 → entry burst cap → rejected | note 2 → 2-bar trail lock → shipped | note 3 → T+20 weakness gate → rejected
     "2026-04-22": [35, 47, 42],        # note 1 → ARM late-signal pattern → not pursuing | note 2 → GAP_GO budget priority → not pursuing | note 3 → quick-stop pause gate → rejected
-    "2026-04-23": [30, None, None],    # note 1 → late-session stop gate → rejected
-    "2026-04-24": [49, 50, None],       # note 1 → GAP_GO high-vol tiered exit → not pursuing | note 2 → TSLA per-ticker → not pursuing | note 3 → Var B gate illustration
-    "2026-04-28": [None, 50, None],     # note 1 → vol on down days observation | note 2 → TSLA per-ticker → not pursuing | note 3 → zero-TAKE pattern
-    "2026-04-27": [31, 39, None],      # note 1 → choppiness boost → rejected | note 2 → GAP_GO early trail gate → rejected
-    "2026-04-29": [None, 43, None],    # note 2 → 2-bar trail lock → shipped
-    "2026-04-30": [None, 45],          # note 2 → pre-10:00 TAKE block → shipped (note 3 KOPN tiered exit moved to Revisit tab)
-    "2026-05-01": [46, None, None],    # note 1 → GAP_GO T+30 no-progress → not pursuing
+    "2026-04-23": [30, 67, 68],        # note 1 → late-session stop gate → rejected | note 2 → loss-count gate → structural failure | note 3 → NO_PROGRESS observation → filed
+    "2026-04-24": [49, 50, None],      # note 1 → GAP_GO high-vol tiered exit → not pursuing | note 2 → TSLA per-ticker → not pursuing | note 3 → Var B illustration (Revisit open)
+    "2026-04-27": [31, 39, 67],        # note 1 → choppiness boost → rejected | note 2 → GAP_GO early trail gate → rejected | note 3 → no-TP-by-11 gate → structural failure
+    "2026-04-28": [68, 50, 66],        # note 1 → vol on down days → filed | note 2 → TSLA per-ticker → not pursuing | note 3 → zero-TAKE pattern → not pursuing (Rule 2, $0 change)
+    "2026-04-29": [66, 43, 67],        # note 1 → zero-TAKE MAYBE floor → not pursuing (Rule 2, $0 change) | note 2 → 2-bar trail lock → shipped | note 3 → half-exits gate → structural failure
+    "2026-04-30": [None, 45],          # note 1 → late TAKE entry (related to late-entry vol floor Revisit) | note 2 → pre-10:00 TAKE block → shipped
+    "2026-05-01": [46, 67, 65],        # note 1 → GAP_GO T+30 no-progress → not pursuing | note 2 → triple-stop gate → structural failure | note 3 → scaled day limit → not pursuing (Rule 3, $0 change)
     "2026-05-04": [52, 53, 54],        # note 1 → neg-gap 2x filter → not pursuing | note 2 → neg-gap score penalty → not pursuing | note 3 → burst entry cap → not pursuing
-    "2026-05-05": [None, None, None],  # note 1 → ARM first-bar GAP_GO block | note 2 → flat-gap re-entry block | note 3 → flat-gap ORB score penalty
-    "2026-05-06": [None, None, None],
+    "2026-05-05": [61, 69, 70],        # note 1 → first-bar GAP_GO block → not pursuing | note 2 → flat-gap re-entry block → revisit | note 3 → flat-gap ORB score penalty → not pursuing
+    "2026-05-06": [60, None, 62],     # note 1 → confirm-bar exit for large-gap GAP_GO → shipped | note 3 → PM_ORB MAYBE after 13:00 → not pursuing
 }
 
 # Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
 PER_DAY_GROWTH_EX2 = {
-    "2026-05-06": [
-        (
-            "PM_ORB Late Entries Leave No Room to Develop",
-            "ARM fired PM_ORB at 13:21 with only 39 minutes until the 14:00 hard close, losing $2.98 (-0.65%). TSLA fired at 12:57 with 63 minutes and made just $1.32 (+0.15%) \u2014 barely above noise after spread and slippage. Both were MAYBE signals that had no room to build momentum before the time close cut them. The current 12:44\u201313:30 window allows entries with as little as 30 minutes of runway, which is structurally too short for a MAYBE-grade signal. DELL (12:47, +$11.14) and KOPN (12:46, +$3.62) both entered early in the window and had 70+ minutes \u2014 those were the only PM_ORBs that moved meaningfully. Test: Tighten PM_ORB entry cutoff from 13:30 to 13:10 for MAYBE signals specifically, leaving TAKE-rated signals eligible through 13:30 since higher volume conviction warrants more risk on a shorter window."
-        ),
-        (
-            "PM_ORB Re-Exposure to Morning Stop-Loss Tickers Doesn't Recover the Loss",
-            "IONQ was stopped out at 11:04 (-$8.09, -1.73%), then re-entered via PM_ORB at 13:04 and made +$7.92 (+1.70%). Net IONQ P&L for the day: -$0.17. The PM_ORB partially healed the wound but didn't close it, and it consumed capital that could have gone to a fresh ticker. A morning STOP_LOSS means price rejected at the ORB level and couldn't hold above it \u2014 PM_ORB re-entering the same name at a higher reference level (morning session high) is asking a ticker that already failed once to now break above an even harder level. When it works, you're nearly back to breakeven; when it fails, you've doubled down on a weak ticker. Today it technically worked but left IONQ net negative. Test: Exclude tickers from PM_ORB eligibility if they exited the morning session via STOP_LOSS. Allow TRAILING_STOP and TIME_CLOSE exits to remain PM_ORB eligible, since those reflect different failure modes."
-        ),
-        (
-            "PM_ORB Performs Best on Tickers with Confirmed Morning Momentum",
-            "Today's two strongest PM_ORB trades \u2014 DELL #2 (+$11.14) and KOPN #2 (+$3.62) \u2014 both followed morning TAKE_PROFIT exits, meaning the ticker had already proven it could trend cleanly intraday. DELL hit TAKE_PROFIT at 12:18 and then broke the morning high again at 12:47, producing the biggest PM_ORB gain of the day. ARM had no morning trade at all and fired PM_ORB at 13:21 with no intraday momentum context \u2014 it lost $2.98. TSLA had a morning ORB that just drifted to TIME_CLOSE without any real directional push, and its PM_ORB returned a near-flat +$1.32. The pattern: tickers that demonstrated conviction in the morning (TAKE_PROFIT) gave PM_ORB a meaningful edge; tickers with weak or absent morning context produced marginal or negative results. Test: Upgrade PM_ORB signals from MAYBE to TAKE on tickers that hit TAKE_PROFIT in the morning session, and apply a SKIP filter to PM_ORB MAYBE signals on tickers with no morning trade. This concentrates PM_ORB capital on confirmed momentum names."
-        )
-    ],
 }
 
 # Per-day Claude's Notes for Exercise 3 (hybrid routing analysis)
@@ -1755,6 +1741,105 @@ def build_dashboard(assets):
                         "MAYBE-rated PM ORBs retain the standard +0.5% candidate threshold. "
                         "Hypothesis: a strong afternoon TAKE signal is worth giving up a modest morning winner.",
         },
+        60: {
+            "title":    "Confirm-bar exit for large-gap GAP_GO — exit if bar after entry closes in lower 40% of its range",
+            "date":     "May 6, 2026",
+            "original": "AMD and SMCI both fired GAP_GO TAKE signals at 09:31 on May 6 with nearly identical gap sizes "
+                        "(+15.1% vs +15.3%) and strong volume (10.6x vs 7.7x). AMD hit TAKE_PROFIT in 3 minutes for +$62.54. "
+                        "SMCI reversed within 2 minutes to STOP_LOSS for -$62.27. The distinguishing factor was not the entry "
+                        "bar itself but what happened immediately after. Proposed: for GAP_GO entries on stocks gapping ≥10%, "
+                        "check the bar immediately after entry — if it closes in the lower 40% of its high-low range "
+                        "(close_pos < 0.60), exit immediately as the gap momentum has already failed.",
+        },
+        61: {
+            "title":    "Block GAP_GO entries on the 09:31 bar — require signal to fire on 09:32 or later",
+            "date":     "May 6, 2026",
+            "original": "ARM gapped and fired GAP_GO on the very first 1-minute close (09:31) on May 5 and reversed "
+                        "immediately for -$30.33. The concern: 09:31 fires at the top of the opening spike before any "
+                        "post-gap consolidation can form. Proposed: disallow GAP_GO entries on the 09:31 bar, requiring "
+                        "the signal bar to be 09:32 or later to ensure at least one bar of confirmation.",
+        },
+        62: {
+            "title":    "Block PM_ORB MAYBE entries after 13:00 — require TAKE rating for late afternoon entries",
+            "date":     "May 6, 2026",
+            "original": "IONQ fired a PM_ORB MAYBE at 13:04 on May 6 with only 56 minutes until the 14:00 hard close. "
+                        "With less than an hour on the clock there is no room for EARLY_WEAK (T+45 check), no trailing stop "
+                        "runway, and any adverse move immediately pressures a TIME_CLOSE loss. Proposed: for PM_ORB entries "
+                        "after 13:00, require TAKE rating (≥2.0x volume); downgrade MAYBE signals in this window to SKIP.",
+        },
+        63: {
+            "title":    "Exclude morning STOP_LOSS tickers from PM_ORB eligibility",
+            "date":     "May 6, 2026",
+            "original": "IONQ stopped out at 11:04 on May 6, then re-entered via PM_ORB at 13:04 and made +$7.92 — "
+                        "nearly recovering the loss but leaving net P&L at -$0.17. A morning STOP_LOSS means price rejected "
+                        "at the ORB level; PM_ORB re-enters at an even higher reference level (morning session high). "
+                        "Proposed: if a ticker exited morning ORB/GAP_GO via STOP_LOSS, block its PM_ORB that afternoon. "
+                        "TRAILING_STOP and TIME_CLOSE exits remain eligible.",
+        },
+        64: {
+            "title":    "Upgrade PM_ORB MAYBE → TAKE allocation for morning TAKE_PROFIT tickers",
+            "date":     "May 6, 2026",
+            "original": "DELL and KOPN on May 6 both had morning TAKE_PROFITs and produced the day's strongest PM_ORBs. "
+                        "The hypothesis: a ticker that proved momentum in the morning deserves a larger afternoon allocation. "
+                        "Proposed: if a ticker hit TAKE_PROFIT in the morning session, upgrade its PM_ORB MAYBE signal to "
+                        "TAKE-sized allocation. Already-TAKE PM_ORBs are unaffected.",
+        },
+        65: {
+            "title":    "Scale daily loss limit to 1.5% of starting capital instead of fixed $75",
+            "date":     "Apr 15, 2026",
+            "original": "The $75 daily loss limit is fixed regardless of wallet size. As the portfolio compounds, $75 "
+                        "becomes a shrinking fraction of capital — at $5,500 it's already under 1.4%. Proposed: set the "
+                        "limit to 1.5% of the session's starting wallet so the floor grows proportionally as the strategy "
+                        "proves itself.",
+        },
+        66: {
+            "title":    "Zero-TAKE day MAYBE floor — tighten volume requirement when no TAKE signals fire",
+            "date":     "Apr 29, 2026",
+            "original": "On days with no TAKE signals, every entry is MAYBE-rated and win rates drop sharply. "
+                        "Proposed: on zero-TAKE days, require vol_ratio ≥ 1.5x for MAYBE entries instead of 1.0x, "
+                        "filtering the lowest-conviction entries when the day shows no high-confidence setups.",
+        },
+        67: {
+            "title":    "Session-state entry gates — batch (structural failure pattern)",
+            "date":     "Apr 23, 2026",
+            "original": "Multiple proposed gates that block new ORB entries based on mid-session loss state: "
+                        "(1) Apr 23: block entries when session has more losses than wins after 11:00. "
+                        "(2) Apr 27: block entries when no position has cleared +1% by 11:00. "
+                        "(3) Apr 29: block entries when >50% of completed exits are losses after 10:00. "
+                        "(4) May 1: block entries for 15 min after 3+ stop-losses within a 15-min window. "
+                        "All follow the same structural failure pattern as tested gates — they fire and block "
+                        "the recovery trades that would have recouped losses.",
+        },
+        68: {
+            "title":    "Pure observations — confirm existing rules, no rule change proposed",
+            "date":     "Apr 16, 2026",
+            "original": "Several daily notes describe patterns that validate existing logic rather than proposing changes: "
+                        "wide-spread vs burst entry days (Apr 16), NO_PROGRESS exits saving flat sessions (Apr 17, Apr 23), "
+                        "zero-TP sessions relying on TIME_CLOSE drift (Apr 20), late entries outperforming early ones (Apr 20), "
+                        "volume spikes being less predictive on broad selloff days (Apr 28). "
+                        "These are useful context for understanding how existing rules behave but do not suggest testable changes.",
+        },
+        69: {
+            "title":    "Flat-gap re-entry block (EX2) — block REENTRY trades when gap_pct is ±0.5%",
+            "date":     "May 5, 2026",
+            "original": "On flat-gap days the initial stop-out revealed no pre-market directional commitment. "
+                        "Re-entering the same stock amplifies exposure without edge. Motivated by UPST May 5 (-$18.53 combined two legs). "
+                        "Proposed: block EX2 re-entries (signal=REENTRY) when the ticker's gap_pct is between -0.5% and +0.5%.",
+        },
+        70: {
+            "title":    "Flat-gap ORB TAKE penalty (EX1) — downgrade or block TAKE entries when gap_pct is ±0.5%",
+            "date":     "May 5, 2026",
+            "original": "On flat-gap days, the stock has no pre-market directional commitment. "
+                        "Proposed: apply a -1 score penalty to ORB entries where gap_pct is ±0.5%, "
+                        "downgrading flat-gap TAKEs to MAYBE (Var A) or blocking them entirely (Var B).",
+        },
+        71: {
+            "title":    "Block TAKE ORB entries at or after 11:00 — opening-range momentum has dissipated by then",
+            "date":     "Apr 13, 2026",
+            "original": "KOPN entered at 10:36 as TAKE on Apr 13 with a full large allocation and only ~3.5 hours left. "
+                        "Late TAKE ORBs after 10:30 were flagged for scrutiny. "
+                        "Proposed: block TAKE-rated ORBs after 10:30, downgrade them, or use a tighter 11:00 cutoff.",
+        },
     }
 
     GROWTH_RESOLUTIONS = {
@@ -1907,6 +1992,20 @@ def build_dashboard(assets):
             "original": "After two consecutive losing days (Apr 21: -$61, Apr 23: -$44), all losses came from MAYBE-rated ORB "
                         "entries. Proposed: skip MAYBE entries entirely and only take TAKE-rated signals, reducing stop-loss "
                         "exposure on bad market days.",
+        },
+        60: {
+            "what":   "Shipped as CONFIRM_BAR_EXIT — if the bar after a large-gap GAP_GO entry closes below 60% of its range, exit immediately",
+            "date":   "May 6, 2026",
+            "detail": "For GAP_GO entries where the pre-market gap is ≥10%, the bar immediately after entry is checked. "
+                      "If close_pos = (close − low) / (high − low) < 0.60, the position exits at that bar's close with reason "
+                      "CONFIRM_BAR_EXIT. Three variants were tested: Opt1 (entry-bar close position), Opt2 (lower wick check), "
+                      "Opt3 (confirm-bar close position at 60%). Opt2 was discarded — it blocked ARM Mar 25 (a +$67 winner). "
+                      "Opt3 at 60% was clean: SMCI exited +$7.55 instead of -$62.27 on May 6 — a $69.82 swing — with no harm "
+                      "to any winning GAP_GO trade in the test set. Logic is in both ex1.py and ex2.py.",
+            "impact": "Test (test_bar_quality.py) across 45 backfill + live days: Baseline +$943.47, Opt3 +$1,019.39 — "
+                      "+$75.92 improvement. SMCI May 6 alone: CONFIRM_BAR_EXIT at +$7.55 vs -$62.27 stop loss (+$69.82). "
+                      "No winning GAP_GO trades were harmed. AMD Apr 24 (10.1% gap) passed the confirm bar check and kept "
+                      "its TRAILING_STOP exit unchanged.",
         },
     }
 
@@ -2225,6 +2324,56 @@ def build_dashboard(assets):
                        "did not compensate for the early exit. Selling a +1.5% open position to chase an afternoon "
                        "signal is a net negative trade. Baseline realloc (+0.5% ceiling, TAKE-only) is already optimal.",
              "date": "May 5, 2026"},
+        61: {"reason": "Tested across 55 days (17 live + 38 backfill, deduplicated). "
+                       "Baseline: +$1,103.08. Block 09:31: +$927.15. Net: -$175.93. "
+                       "09:31 GAP_GO trades are 11W/9L (55% WR) and include ARM Apr 24 (+$55.48), AMD May 6 (+$53.61), "
+                       "and CRDO Apr 13 (+$42.99) — blocking the first bar eliminates big winners alongside the losses. "
+                       "ARM May 5 (-$30.33) that motivated this test is an outlier; the 09:31 bar as a class is net positive.",
+             "date": "May 6, 2026"},
+        62: {"reason": "Tested across 45 days (17 live + 28 backfill, deduplicated). "
+                       "Baseline: +$1,061.72. Block PM_ORB MAYBE >13:00: +$1,050.34. Net: -$11.38. "
+                       "Late MAYBEs are 19W/16L (54% WR) and mostly exit at TIME_CLOSE with small gains. "
+                       "Live days cost -$24.26 from blocking; backfill saves +$12.88 — no consistent edge either way. "
+                       "The narrow-window concern is theoretical; actual results are slightly net positive when kept.",
+             "date": "May 6, 2026"},
+        63: {"reason": "Tested across 45 days (17 live + 28 backfill). Baseline: +$1,061.72. Block SL: +$1,047.54. Net: -$14.18. "
+                       "Blocked trades were net positive — RIVN Mar 3 (+$4.23), RIVN Mar 17 (+$4.41), IONQ May 6 (+$5.94) "
+                       "all were winners after a morning stop. Tweak tested: block MAYBE only (leave TAKE PM_ORBs alone) — "
+                       "improved to -$5.54 but still net negative. Morning SL does not reliably predict PM_ORB failure.",
+             "date": "May 6, 2026"},
+        64: {"reason": "Tested across 45 days (17 live + 28 backfill). Baseline: +$1,061.72. Upgrade TP: +$1,072.62. Net: +$10.90. "
+                       "Tweaks tested: BULL-days-only upgrade gives +$13.80. Combined (SL MAYBE-only block + BULL upgrade): +$8.26. "
+                       "All positive variants are dominated by ARM Apr 22 (+$18.35 single-trade delta) — remove that one trade "
+                       "and all variants go negative. Mar 31 (3 morning TPs, PM_ORB losses amplified: -$4.55) shows the "
+                       "downside risk. Sample too small and result not robust; revisit at 30 PM_ORB days.",
+             "date": "May 6, 2026"},
+        65: {"reason": "Tested as Rule 3 (rule_test.py, May 2, 2026) across 15 live days and 38-day backfill. "
+                       "Result: $0 change in both windows. The day limit never fires mid-session before the last entry of "
+                       "the day — the $75 floor is only reached on the session's worst days and always after all entries "
+                       "have already fired. Scaling to 1.5% produces identical trade logs.",
+             "date": "Apr 15, 2026"},
+        66: {"reason": "Tested as Rule 2 (rule_test.py, May 2, 2026) across 15 live days and 38-day backfill. "
+                       "Result: $0 change in both windows. All zero-TAKE days already had every MAYBE trade above 1.5x "
+                       "volume — the tighter floor would not have blocked a single trade. The pattern is real but the "
+                       "proposed filter has no bite on the actual data.",
+             "date": "Apr 29, 2026"},
+        67: {"reason": "All four variants follow the established structural failure pattern: the gate fires and then blocks "
+                       "recovery trades that would have recouped early losses. Blocking winners and losers in equal proportion "
+                       "because they are indistinguishable at entry time. Triple-stop gate specifically tested in gate_test.py "
+                       "(May 2, 2026): net -$4.49 vs baseline. The others were not run but match the same profile as the "
+                       "seven previously tested and rejected session-state gates.",
+             "date": "Apr 23, 2026"},
+        68: {"reason": "Pure observations that describe how existing rules behave, not proposals for new rules. "
+                       "No code change warranted. Filed to keep the Untested tab clean.",
+             "date": "Apr 16, 2026"},
+        70: {"reason": "Tested across 55 days (17 live + 38 backfill, deduplicated). "
+                       "4 flat-gap TAKE ORB trades in sample: RIVN Apr 15 (-$11.20), ARM Apr 16 (+$40.87), "
+                       "DELL Apr 24 (+$23.28), DKNG Apr 30 (-$5.80). Net: +$47.15 — these are winners, not laggards. "
+                       "Downgrade (Var A): -$23.58. Block (Var B): -$47.15. "
+                       "Tweaks tested: ±0.2% tighter band still costs $6.28 (DELL at +0.16% is a winner). "
+                       "Vol floor tweak has no effect (all trades at or above 1.5x). "
+                       "The premise is wrong — flat gap does not predict underperformance for TAKE-rated ORBs.",
+             "date": "May 5, 2026"},
         59: {
             "what":   "PM_ORB reference level changed from IEX noon range (12:00–12:44) to morning session high (9:30–11:30) in ex2.py",
             "date":   "May 6, 2026",
@@ -2253,6 +2402,20 @@ def build_dashboard(assets):
                       "Net combined across 55 dates: +$115.20. Win/loss record unchanged in both exercises. "
                       "Primary driver: KOPN Apr 22 TAKE stop (-$20.54) converted to MAYBE (smaller allocation, smaller loss). "
                       "Apr 6 and Apr 10 also improved from newly-discovered backfill TAKE failures.",
+        },
+        71: {
+            "what":   "Block TAKE-rated ORB entries at or after 11:00 in ex1.py (and ex2.py)",
+            "date":   "May 6, 2026",
+            "detail": "TAKE ORB entries at or after 11:00 are 0W/3L across 55 days. By 11:00 the opening range "
+                      "momentum has dissipated — late TAKE breakouts lack the directional conviction that makes early ORBs work. "
+                      "The 10:30–10:59 window remains open: ARM Apr 16 (+$40.87), KOPN Apr 30 (+$43.51), DELL Apr 24 (+$23.28) "
+                      "all entered in that window and are net-positive. Only post-11:00 TAKE entries are blocked. "
+                      "Variants tested: block all after 10:30 (-$62.25), downgrade to MAYBE (-$31.14), block after 11:00 (+$24.03). "
+                      "Implemented as: if rating == 'TAKE' and times[i] >= '11:00': continue, after the existing pre-10:00 block.",
+            "impact": "Tested across 55 days (17 live + 38 backfill, deduplicated). "
+                      "Baseline: +$1,103.08. Block 11:00+: +$1,127.11 (+$24.03). "
+                      "3 trades blocked, all losers: NVDA Mar 3 (11:06, -$7.19), COIN Mar 17 (11:03, -$11.04), DKNG Apr 30 (11:19, -$5.80). "
+                      "0W/3L win rate post-11:00 — every post-11:00 TAKE ORB in the dataset was a losing trade.",
         },
     }
 
@@ -2318,6 +2481,33 @@ def build_dashboard(assets):
             <div class="imp-original"><em>Original concern:</em> {item["suggestion"]}</div>
             <div class="rej-reason">{item["reason"]}</div>
         </div>"""
+
+    # --- Untested tab: pull all PER_DAY_GROWTH notes with None index, newest date first ---
+    untested_cards = ""
+    for date in sorted(PER_DAY_GROWTH.keys(), reverse=True):
+        notes = PER_DAY_GROWTH[date]
+        idxs  = PER_DAY_GROWTH_IDX.get(date, [None] * len(notes))
+        for i, (title, detail) in enumerate(notes):
+            if i >= len(idxs) or idxs[i] is None:
+                date_badge = f'<span style="color:#555;font-size:0.76em;font-weight:normal;margin-left:8px">{date}</span>'
+                untested_cards += f"""
+        <div class="active-card">
+            <div class="active-card-title">{title}{date_badge}</div>
+            <div class="active-card-desc">{detail}</div>
+            <div class="active-card-verdict verdict-untested">Not yet tested.</div>
+        </div>"""
+    for date in sorted(PER_DAY_GROWTH_EX2.keys(), reverse=True):
+        for title, detail in PER_DAY_GROWTH_EX2[date]:
+            date_badge = f'<span style="color:#555;font-size:0.76em;font-weight:normal;margin-left:8px">{date} · EX2</span>'
+            untested_cards += f"""
+        <div class="active-card">
+            <div class="active-card-title">{title}{date_badge}</div>
+            <div class="active-card-desc">{detail}</div>
+            <div class="active-card-verdict verdict-untested">Not yet tested.</div>
+        </div>"""
+    untested_block = (f'<p style="color:#888;font-size:0.85em;margin-bottom:20px">Ideas from daily notes not yet tested. Newest first.</p>'
+                      + untested_cards) if untested_cards else \
+                     '<p style="color:#555;font-size:0.85em">Nothing untested right now.</p>'
 
     shipped_block = (f'<p style="color:#888;font-size:0.85em;margin-bottom:16px">'
                      f'{len(addressed_idxs)} suggestion{"s" if len(addressed_idxs)!=1 else ""} live in the model.</p>'
@@ -2536,6 +2726,26 @@ def build_dashboard(assets):
         </div>
 
         <div class="active-card">
+            <div class="active-card-title">Flat-gap re-entry block (EX2) — block REENTRY trades when gap_pct is ±0.5% <span style="color:#555;font-size:0.76em;font-weight:normal;margin-left:8px">May 5, 2026</span></div>
+            <div class="active-card-desc">
+                On flat-gap days the initial stop-out revealed no pre-market directional commitment — re-entering the same
+                stock amplifies exposure without edge. Motivated by UPST May 5 (-$9.17 re-entry stop after a -$9.36 initial stop,
+                -$18.53 combined). Proposed: block EX2 re-entries (signal=REENTRY) when the ticker's gap_pct is between -0.5% and +0.5%.
+                <br><br>
+                Tested across 45 days (17 live + 28 backfill). Only 3 flat-gap re-entries in the entire dataset:
+                <ul style="margin:8px 0 0 16px;padding:0">
+                    <li>UPST May 5: -$9.17 (stop loss) — blocking saves $9.17</li>
+                    <li>SMCI Mar 13: -$2.87 (stop loss) — blocking saves $2.87</li>
+                    <li>RIVN Mar 17: +$1.13 (time close) — blocking misses $1.13</li>
+                </ul>
+                <br>
+                <strong style="color:#e0e0e0">Net: +$10.91 over 45 days</strong> — directionally correct, but only 3 trades.
+                The rule is simple to implement; the sample is too thin to act on confidently.
+            </div>
+            <div class="active-card-verdict verdict-watch">Revisit at 30 EX2 days. If flat-gap re-entries continue to be net-negative, ship. If flat-gap re-entries with strong continuation accumulate, the rule may not be worth the cost. Currently 2W blocked / 1L blocked.</div>
+        </div>
+
+        <div class="active-card">
             <div class="active-card-title">Early GAP_GO reversal gate — if all early GAP_GO exits are losses, raise ORB vol floor for the session <span style="color:#555;font-size:0.76em;font-weight:normal;margin-left:8px">May 3, 2026</span></div>
             <div class="active-card-desc">
                 When a GAP_GO position trails out in the first 10–15 minutes, morning momentum has reversed.
@@ -2568,6 +2778,7 @@ def build_dashboard(assets):
             <button class="imp-subtab" id="impsub-active" onclick="showImpSub('active')">Active Logic</button>
             <button class="imp-subtab" id="impsub-revisit" onclick="showImpSub('revisit')">Revisit</button>
             <button class="imp-subtab" id="impsub-notpursuing" onclick="showImpSub('notpursuing')">Not Pursuing</button>
+            <button class="imp-subtab" id="impsub-untested" onclick="showImpSub('untested')">Untested</button>
         </div>
         <div id="imp-sub-shipped">
             {shipped_block}
@@ -2580,6 +2791,9 @@ def build_dashboard(assets):
         </div>
         <div id="imp-sub-notpursuing" style="display:none">
             {skipped_block}
+        </div>
+        <div id="imp-sub-untested" style="display:none">
+            {untested_block}
         </div>
     </div>"""
 
@@ -2800,6 +3014,7 @@ def build_dashboard(assets):
         .verdict-keep       {{ color: #4caf50; }}
         .verdict-watch      {{ color: #f0a04a; }}
         .verdict-bad        {{ color: #f44336; }}
+        .verdict-untested   {{ color: #7eb8f7; }}
         .notes-section   {{ margin-top: 12px; border-top: 1px solid #2a2a4a; padding-top: 10px; }}
         .notes-header    {{ color: #a78bfa; font-size: 0.82em; font-weight: bold; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }}
         .notes-header:hover {{ color: #c4b5fd; }}
@@ -3015,7 +3230,7 @@ def build_dashboard(assets):
         }}
 
         function showImpSub(name) {{
-            ['shipped','active','revisit','notpursuing'].forEach(function(s) {{
+            ['shipped','active','revisit','notpursuing','untested'].forEach(function(s) {{
                 var panel = document.getElementById('imp-sub-' + s);
                 var btn   = document.getElementById('impsub-' + s);
                 if (panel) panel.style.display = (s === name) ? 'block' : 'none';

@@ -358,5 +358,10 @@
     "spy_prev_close": 718.09,
     "spy_premarket": 721.47,
     "state": "bullish"
+  },
+  {
+    "date": "2026-05-06",
+    "spy_gap_pct": 0.685,
+    "vixy_trend_pct": -0.197
   }
 ]
