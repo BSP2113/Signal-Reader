@@ -535,6 +535,20 @@ PER_DAY_GROWTH = {
             "IONQ PM_ORB MAYBE at 13:04 \u2014 56-minute window too narrow for sub-TAKE entries",
             "IONQ fired a PM_ORB MAYBE at 13:04 with 1.9x volume, leaving only 56 minutes before the 14:00 TIME_CLOSE. The trade ended at +1.70% (+$15.58), which is positive but represents poor risk-reward for a MAYBE-rated signal: with less than an hour on the clock, there is no room for early weakness detection (T+45 check), no trailing stop runway, and any adverse move immediately pressures a TIME_CLOSE exit at a loss. KOPN's PM_ORB at 12:46 only managed +1.04% (+$7.11) in its 74-minute window. Both PM_ORB trades were TIME_CLOSE exits rather than momentum-driven ones \u2014 the narrow afternoon window rewards only high-conviction entries. Test: For PM_ORB entries after 13:00, require TAKE rating (\u22652.0x volume); downgrade MAYBE signals in this window to SKIP and log the reason as 'PM_ORB_LATE_MAYBE'."
         )    ],
+    "2026-05-07": [
+        (
+            "ASTS GAP_GO +3.0% borderline gap \u2192 $24.71 stop in 9 minutes",
+            "ASTS triggered a GAP_GO at 09:31 with a gap of exactly +3.0% \u2014 the minimum qualifying threshold \u2014 and was stopped out by 09:40 for -$24.71. A +3.0% gap barely clears the floor and carries none of the momentum of a stronger gap; the stock had no follow-through and reversed immediately. Borderline-minimum gaps are indistinguishable from normal pre-market noise and are more likely to fade than continue. The 3.0x volume looked convincing but couldn't compensate for a weak gap structure. Test: Raise the GAP_GO minimum gap threshold from +3.0% to +3.5%, filtering out setups that only marginally qualify."
+        ),
+        (
+            "SMCI 4.0x volume MAYBE under-allocated \u2014 missed ~$28 at TAKE level",
+            "SMCI fired an ORB at 09:49 with 4.0x volume \u2014 more than double the 1.5x threshold required for volume conviction \u2014 but scored MAYBE and received the lower 15% NEUT allocation. It hit the +3% take-profit target at 10:55 for $27.68. At full TAKE allocation (30% NEUT), the same exit would have returned roughly $55. The volume conviction was unusually strong and the outcome validated the setup completely. When a signal scores MAYBE only because of marginal choppiness or trend factors while volume is extreme, the volume may be the more reliable signal. Test: Add an allocation override \u2014 when a MAYBE signal has volume \u2265 3.5x, apply TAKE-level allocation regardless of the score composite."
+        ),
+        (
+            "KOPN PM_ORB 13:02 at same $4.90 as earlier ORB \u2014 flat all day on -2.0% gap",
+            "KOPN's ORB triggered at 10:16 at $4.90 and exited via trailing stop at $4.89 (-$1.07). At 13:02, the PM_ORB fired at the same price \u2014 $4.90 \u2014 meaning the stock made zero net progress in 2.5 hours. The -2.0% open gap established a bearish condition, and the flat midday price confirmed no buyers stepped in. A PM_ORB that fires at the same level as a failed morning ORB is not a fresh breakout \u2014 it is a re-test of resistance that already rejected once, with less time runway remaining. The -$8.58 stop compounded the damage on a ticker that was clearly not working that day. Test: Block PM_ORB entries on tickers that gapped negative at open and had a prior losing ORB trade earlier in the same session at or above the PM_ORB entry price."
+        )
+    ],
 }
 
 # Links each per-day note to its improvement pool index (one entry per note in the list).
@@ -559,6 +573,7 @@ PER_DAY_GROWTH_IDX = {
     "2026-05-04": [52, 53, 54],        # note 1 → neg-gap 2x filter → not pursuing | note 2 → neg-gap score penalty → not pursuing | note 3 → burst entry cap → not pursuing
     "2026-05-05": [61, 69, 70],        # note 1 → first-bar GAP_GO block → not pursuing | note 2 → flat-gap re-entry block → revisit | note 3 → flat-gap ORB score penalty → not pursuing
     "2026-05-06": [60, None, 62],     # note 1 → confirm-bar exit for large-gap GAP_GO → shipped | note 3 → PM_ORB MAYBE after 13:00 → not pursuing
+    "2026-05-07": [None, None, None],
 }
 
 # Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
