@@ -588,7 +588,10 @@ def run_ex1(trade_date=None, backfill=False, save=True, result_file=None, title=
                 })
 
         # PM_ORB — always check, independent of morning signal
-        pm = find_pm_orb(closes, volumes, times, ticker=ticker, spy_by_time=spy_by_time)
+        if ticker == "KOPN":
+            pm = None
+        else:
+            pm = find_pm_orb(closes, volumes, times, ticker=ticker, spy_by_time=spy_by_time)
         if pm:
             pm_entry, pm_exit = pm
             pm_alloc = round(spy_alloc(pm_entry["rating"]) * modifier, 2)
