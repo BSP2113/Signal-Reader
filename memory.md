@@ -27,6 +27,9 @@
 - Ticker swap: CRWD removed (worst performer, -$51.03, 42% win rate over 19 trades); DELL added (May 2, 2026) — DELL tested at 62% win rate, +$109.84 over 30 days in isolation
 - Ticker swap: RKLB removed May 3, 2026 — 29% win rate, -$23.61 over 17 trades; UPST added May 3, 2026 — 62% win rate, +$63.75 over 8 trades in 30-day backtest
 - RDDT removed May 3, 2026 — 21% win rate, P&L almost entirely from one $33.97 outlier; no replacement cleared threshold (HIMS best at 41% WR)
+- RIVN removed May 6, 2026 — 33% WR live, 30% WR backfill; chronic underperformer; historical trade records preserved in exercises.json
+- SNDK added May 7, 2026 — 48% WR overall, 60% WR in live window; avg win +$18.71 vs avg loss -$3.93 (4.8:1 ratio); first live data accumulates from May 7 forward
+- TICKER_START gate added May 7, 2026 — dict in ex1.py and ex2.py that maps each mid-stream ticker addition to its effective date; any ticker in the dict is skipped for trade dates before that date, preventing historical bleed in backfills or test re-runs
 - PM_ORB signal added May 5, 2026 — post-lunch consolidation breakout above 12:00–12:44 range high, entries before 13:30, standard ORB scoring (TAKE/MAYBE/SKIP); same exit rules as ORB
 - Reallocation logic added May 5, 2026 (EX1 + EX2) — when a TAKE signal fires after 11:00am and budget is short, sell the worst open position (PnL% < +0.5%) to free capital; position closed at current price with exit_reason REALLOC
 - Market state historical fix May 5, 2026 — market_states_historical.json stores raw spy_gap_pct/vixy_trend_pct; ex1/ex2 now re-derive BULL/NEUT/BEAR with current constants so threshold changes take effect retroactively

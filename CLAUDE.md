@@ -134,8 +134,14 @@ Then open `dashboard.html` in your browser.
 - UPST added May 3, 2026 — 62% win rate, +$63.75 over 8 trades in 30-day backtest; positive expectancy ($17.49 avg win vs $7.90 avg loss)
 - RDDT removed May 3, 2026 — 21% win rate, 14 trades; P&L almost entirely from one $33.97 outlier trade; two replacement batches tested (HIMS best at 41% WR — no replacement cleared threshold)
 - RIVN removed May 6, 2026 — 33% WR live, 30% WR backfill; chronic underperformer
-- SNDK added May 6, 2026 — 48% WR overall, 60% WR in live window; avg win +$18.71 vs avg loss -$3.93 (4.8:1 ratio); +$203.98 net improvement over 46-day backtest vs RIVN
+- SNDK added May 7, 2026 — 48% WR overall, 60% WR in live window; avg win +$18.71 vs avg loss -$3.93 (4.8:1 ratio); +$203.98 net improvement over 46-day backtest vs RIVN
 - No crypto tickers — MSTR, MARA, RIOT, ETHA considered and declined (additional tax filing requirements)
+
+### Adding or Removing Tickers
+- **Never rewrite historical data** when swapping tickers — past trade records must stay as the ticker that was actually running at the time
+- To add a ticker: add it to `TICKERS` in ex1.py, ex2.py, and fetch_data.py; add an entry to `TICKER_START` in ex1.py and ex2.py with its effective date (format: `"YYYY-MM-DD"`)
+- `TICKER_START` gates prevent a new ticker from appearing in any backfill or historical re-run before its effective date, avoiding data contamination
+- To remove a ticker: remove it from `TICKERS` only — its historical trade records in exercises.json stay intact
 
 ### Dashboard Features
 - Ticker tabs — one chart at a time
