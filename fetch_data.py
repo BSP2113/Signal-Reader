@@ -549,6 +549,20 @@ PER_DAY_GROWTH = {
             "KOPN's ORB triggered at 10:16 at $4.90 and exited via trailing stop at $4.89 (-$1.07). At 13:02, the PM_ORB fired at the same price \u2014 $4.90 \u2014 meaning the stock made zero net progress in 2.5 hours. The -2.0% open gap established a bearish condition, and the flat midday price confirmed no buyers stepped in. A PM_ORB that fires at the same level as a failed morning ORB is not a fresh breakout \u2014 it is a re-test of resistance that already rejected once, with less time runway remaining. The -$8.58 stop compounded the damage on a ticker that was clearly not working that day. Test: Block PM_ORB entries on tickers that gapped negative at open and had a prior losing ORB trade earlier in the same session at or above the PM_ORB entry price."
         )
     ],
+    "2026-05-08": [
+        (
+            "GAP_GO False Breakout: KOPN -$18.58 + CRDO -$29.28 Stopped in First 5 Bars",
+            "KOPN (09:31, 4.8x vol, +4.0% gap) and CRDO (09:32, 4.1x vol, +3.1% gap) were both TAKE-rated GAP_GO entries that reversed and hit STOP_LOSS within 4\u20135 bars, producing a combined $47.86 loss in under 7 minutes. Both had strong volume, yet price failed immediately after the opening bar's high was breached. High open volume on gap days often reflects two-sided activity \u2014 sellers absorbing the gap \u2014 not clean directional momentum. The current rule enters on the *first* 1-minute close above the opening bar's high, which can catch the exhaustion top of the gap spike itself rather than a genuine continuation. Test: For GAP_GO signals, require two consecutive 1-minute closes above the trigger level before entering, filtering entries where price peaks on bar one and immediately retreats."
+        ),
+        (
+            "AMD GAP_GO +3% Profit Cap Left Upside on Table (6.6x Vol, BULL Day)",
+            "AMD entered at 09:31 via GAP_GO with the day's highest volume conviction at 6.6x on a BULL market. It ran cleanly for 51 minutes before hitting the +3% take profit at 10:22, locking in $63.86. A GAP_GO signal with 6.6x volume on a BULL day that holds momentum for nearly an hour without a pullback is showing sustained institutional buying \u2014 exactly the setup where a fixed 3% ceiling caps the trade prematurely. By contrast, KOPN and CRDO with lower vol (4.8x, 4.1x) failed within minutes, suggesting that \u22655\u20136x volume on gap day BULL entries is a meaningful quality separator. Test: For GAP_GO signals on BULL days with \u22655x volume, raise take profit to +4.5%, or take 50% off at +3% and trail the remainder with a 2% trailing stop to let the strongest setups run."
+        ),
+        (
+            "TSLA MAYBE Capital Lock: 4h15m Held for Only +$15.62 (+0.90%)",
+            "TSLA entered ORB at 09:45 as a MAYBE with 3.2x volume and held until the 14:00 hard close, returning +0.90% ($15.62) after 4 hours and 15 minutes. TSLA is excluded from early weakness exits, and the no-progress rule didn't fire at T+90 (11:15) because price was above entry at that check. The result is $15.62 tied up in capital that was never redeployed \u2014 DELL's PM_ORB TAKE fired at 12:53 and returned $92.47 in 11 minutes. MAYBE-rated positions drifting between +0% and +1% past noon are dead weight. Test: For MAYBE-rated ORB entries still open at 12:00 with unrealized gain below +0.5%, apply a time-based exit at 12:00 rather than holding to the 14:00 hard close."
+        )
+    ],
 }
 
 # Links each per-day note to its improvement pool index (one entry per note in the list).
@@ -574,10 +588,25 @@ PER_DAY_GROWTH_IDX = {
     "2026-05-05": [61, 69, 70],        # note 1 → first-bar GAP_GO block → not pursuing | note 2 → flat-gap re-entry block → revisit | note 3 → flat-gap ORB score penalty → not pursuing
     "2026-05-06": [60, None, 62],     # note 1 → confirm-bar exit for large-gap GAP_GO → shipped | note 3 → PM_ORB MAYBE after 13:00 → not pursuing
     "2026-05-07": [None, None, None],
+    "2026-05-08": [None, None, None],
 }
 
 # Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
 PER_DAY_GROWTH_EX2 = {
+    "2026-05-07": [
+        (
+            "Re-entry window closed before trailing stops fired",
+            "PLTR and KOPN both exited via TRAILING_STOP \u2014 the two exit types that qualify for re-entries \u2014 but neither triggered one. PLTR's trailing stop fired at 12:11, well after the 11:30 ORB scan window closed, making re-entry structurally impossible. KOPN's trailing stop fired at 11:22 within the window, but required a new ORB breakout above the range high that never materialized. ASTS was correctly excluded as a GAP_GO trade. The re-entry rule has a blind spot: any ticker that peaks and reverses after 11:30 \u2014 a common intraday pattern \u2014 has zero re-entry path even if it later shows renewed strength. Today this cost nothing, but on a BULL day with a strong PLTR afternoon recovery it could miss a meaningful second leg. Test: log the post-exit high for all TRAILING_STOP exits that occurred after 11:00 for the next 10 sessions; if the post-exit price exceeds the exit price by >1.5% within 90 minutes on two or more occasions, allow PM_ORB to serve as the re-entry mechanism for trailing-stop exits where the ORB window has already closed."
+        ),
+        (
+            "PM_ORB absent on NEUTRAL day \u2014 silence is a data point",
+            "No PM_ORB signals fired in the 12:44\u201313:30 window today. On a NEUTRAL market day where SMCI took profit by 10:55, PLTR reversed by 12:11, and META stalled out, the lack of post-lunch continuation makes structural sense \u2014 no ticker reclaimed its morning session high in that window. This is the desired behavior: PM_ORB should self-select into high-momentum days. But over the first few sessions since PM_ORB launched (May 5), it has yet to fire at all. It's too early to judge, but the pattern of NEUTRAL days producing zero PM_ORB signals while BULL days haven't been tested yet makes BULL market performance the critical unknown. Test: at the 30-day mark, compare PM_ORB hit rate (signals fired per session) broken down by BULL vs NEUT vs BEAR market state; if NEUT and BEAR days produce PM_ORB signals at less than half the BULL rate, add a BULL-only filter to restrict PM_ORB to days where SPY gap is \u2265+0.3%."
+        ),
+        (
+            "Extra layers added $0 \u2014 EX2 edge is entirely wallet-state today",
+            "All three EX2 add-on layers (re-entries, PM_ORB, afternoon breakouts) contributed $0.00 today. EX2's $+8.65 advantage over EX1 came entirely from compounding wallet differences \u2014 not from any signal the extra layers generated. The re-entry layer is already net slightly negative over 12 days per the 30-day review in progress. A recurring pattern of $0 contribution from extra layers on NEUTRAL days would mean EX2 only adds value on BULL days when momentum extends into the afternoon \u2014 and adds risk of drawdown (via re-entries doubling down on losing setups) on NEUT/BEAR days. Test: tag each session with whether EX2 extra layers added, subtracted, or were flat vs EX1, broken down by market state; if NEUT and BEAR days show extra layers flat or negative in aggregate at the 30-day mark, restrict re-entries and PM_ORB to BULL market days only."
+        )
+    ],
 }
 
 # Per-day Claude's Notes for Exercise 3 (hybrid routing analysis)
@@ -1499,6 +1528,82 @@ def build_dashboard(assets):
         <div id="pool-sub-rejected" style="display:none">
             {_pool_sub(pool_by_status['rejected'], 'No rejected candidates yet.')}
         </div>
+    </div>"""
+
+    # --- Candidates panel (from picker-short) ---
+    import glob, csv
+    _cand_dir  = "/home/ben/picker-short/data/candidates"
+    _cand_files = sorted(glob.glob(os.path.join(_cand_dir, "candidates_*.csv")))
+    if _cand_files:
+        _latest = _cand_files[-1]
+        _cand_date = os.path.basename(_latest).replace("candidates_", "").replace(".csv", "")
+        _rows = []
+        with open(_latest, newline="") as f:
+            for row in csv.DictReader(f):
+                _rows.append(row)
+        def _cand_row(r):
+            rs       = float(r.get("rs_5d", 0))
+            rs_col   = "#4caf50" if rs >= 0 else "#ef5350"
+            rs_str   = f'<span style="color:{rs_col}">{rs:+.1f}%</span>'
+            removed  = r.get("prev_removed", "False") == "True"
+            tk_color = "#e6a817" if removed else "#4f8ef7"
+            rm_date  = r.get("removed_date", "")
+            flag_str = (f'<span style="color:#e6a817;font-size:0.75em;margin-left:6px" '
+                        f'title="Previously removed on {rm_date}">&#9873; prev. removed</span>'
+                        if removed else "")
+            chg      = r.get("rank_change", "")
+            chg_col  = "#4caf50" if str(chg).startswith("↑") else ("#ef5350" if str(chg).startswith("↓") else "#888")
+            chg_str  = f'<span style="color:{chg_col};font-size:0.85em">{chg}</span>'
+            sector   = r.get("sector", "—")
+            return (f'<tr>'
+                    f'<td style="color:#888">{r["rank"]}</td>'
+                    f'<td>{chg_str}</td>'
+                    f'<td style="font-weight:700;color:{tk_color}">{r["ticker"]}{flag_str}</td>'
+                    f'<td>{float(r["score"]):.1f}</td>'
+                    f'<td>{r["gaps_30d"]}</td>'
+                    f'<td>{float(r["atr_pct"]):.1f}%</td>'
+                    f'<td>{rs_str}</td>'
+                    f'<td style="color:#aaa">${float(r["price"]):.2f}</td>'
+                    f'<td style="color:#aaa">{float(r["avg_vol_M"]):.1f}M</td>'
+                    f'<td style="color:#666;font-size:0.82em">{sector}</td>'
+                    f'</tr>')
+        _table_rows = "".join(_cand_row(r) for r in _rows)
+        candidates_section = f"""
+    <div id="candidates-panel" style="display:none">
+        <div class="section-header">Short-Term Candidates &nbsp;<span style="font-size:0.75em;color:#555;font-weight:400">from picker-short &mdash; {_cand_date}</span></div>
+        <p style="color:#888;font-size:0.85em;margin:0 0 14px 0">
+            Top candidates to sub into the Signal Reader. Scored on gap frequency, ATR% fit (sweet spot 2&ndash;6%), and momentum vs SPY. Refreshes daily at 8 AM.
+        </p>
+        <table style="width:100%;border-collapse:collapse;font-size:0.9em">
+            <thead>
+                <tr style="color:#555;border-bottom:1px solid #2a2a2a;text-align:left">
+                    <th style="padding:6px 10px">#</th>
+                    <th style="padding:6px 10px">Chg</th>
+                    <th style="padding:6px 10px">Ticker</th>
+                    <th style="padding:6px 10px">Score</th>
+                    <th style="padding:6px 10px">Gaps&nbsp;/&nbsp;30d</th>
+                    <th style="padding:6px 10px">ATR%</th>
+                    <th style="padding:6px 10px">RS&nbsp;5d</th>
+                    <th style="padding:6px 10px">Price</th>
+                    <th style="padding:6px 10px">Avg&nbsp;Vol</th>
+                    <th style="padding:6px 10px">Sector</th>
+                </tr>
+            </thead>
+            <tbody>{_table_rows}</tbody>
+        </table>
+        <p style="color:#444;font-size:0.78em;margin-top:14px">
+            Chg = rank vs yesterday &nbsp;&middot;&nbsp;
+            Gaps = # of &ge;3% up-gaps in last 30 days (follow-through weighted) &nbsp;&middot;&nbsp;
+            ATR% = avg true range as % of price &nbsp;&middot;&nbsp;
+            RS 5d = 5-day return vs SPY &nbsp;&middot;&nbsp;
+            &#9873; = previously removed from Signal Reader
+        </p>
+    </div>"""
+    else:
+        candidates_section = """
+    <div id="candidates-panel" style="display:none">
+        <div class="section-header">Short-Term Candidates</div>
+        <p style="color:#555;padding:20px">No candidate data yet. Run picker-short to generate results.</p>
     </div>"""
 
     # --- Improvements panel ---
@@ -3142,6 +3247,7 @@ def build_dashboard(assets):
             <button class="tab" id="tab-grad" onclick="showGrad()">Graduation</button>
             <button class="tab" id="tab-imp" onclick="showImprovements()">Improvements</button>
             <button class="tab" id="tab-pool" onclick="showTickerPool()">Ticker Pool</button>
+            <button class="tab" id="tab-candidates" onclick="showCandidates()">Candidates</button>
         </div>
     </div>
     {home_section}
@@ -3150,6 +3256,7 @@ def build_dashboard(assets):
     {grad_section}
     {improvements_section}
     {pool_section}
+    {candidates_section}
     <p class="meta">Generated: {generated} — auto-refreshes every 60 seconds (keep run.py running)</p>
     <script>
         var charts    = {{}};
@@ -3302,6 +3409,7 @@ def build_dashboard(assets):
             var grad = document.getElementById('grad-panel'); if (grad) grad.style.display = 'none';
             var imp  = document.getElementById('imp-panel');  if (imp)  imp.style.display  = 'none';
             var pool = document.getElementById('pool-panel'); if (pool) pool.style.display = 'none';
+            var cand = document.getElementById('candidates-panel'); if (cand) cand.style.display = 'none';
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.getElementById('btn-home').classList.remove('active');
         }}
@@ -3315,6 +3423,17 @@ def build_dashboard(assets):
             document.getElementById('day-label').style.display    = 'none';
             document.getElementById('interval-label').style.display = 'none';
             localStorage.setItem('activePanel', 'imp');
+        }}
+
+        function showCandidates() {{
+            hideAll();
+            var cand = document.getElementById('candidates-panel');
+            if (cand) cand.style.display = 'block';
+            document.getElementById('tab-candidates').classList.add('active');
+            document.getElementById('date-select').style.display    = 'none';
+            document.getElementById('day-label').style.display      = 'none';
+            document.getElementById('interval-label').style.display = 'none';
+            localStorage.setItem('activePanel', 'candidates');
         }}
 
         function showTickerPool() {{
@@ -3475,6 +3594,7 @@ def build_dashboard(assets):
             else if (saved === 'grad') {{ showGrad(); }}
             else if (saved === 'imp')  {{ showImprovements(); }}
             else if (saved === 'pool') {{ showTickerPool(); }}
+            else if (saved === 'candidates') {{ showCandidates(); }}
             else if (saved === 'pnl') {{
                 showPnL();
                 var pnlScroll = localStorage.getItem('pnlScroll');
