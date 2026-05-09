@@ -11,3 +11,4 @@ __pycache__/
 *.pyc
 data_cache/
 backups/
+dry_state.json

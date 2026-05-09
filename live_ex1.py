@@ -200,9 +200,14 @@ def already_in(ticker: str) -> bool:
 
 
 def place_entry(ticker: str, signal: str, rating: str, entry_price: float,
-                dollars: float):
-    """Submit market buy + attach native stop-loss + (MAYBE only) take-profit."""
-    print(f"[entry] {ticker} {signal} {rating} @ ${entry_price:.2f}  size=${dollars:.2f}")
+                dollars: float, signal_time: str | None = None):
+    """Submit market buy + attach native stop-loss + (MAYBE only) take-profit.
+
+    signal_time: the bar time when the signal fired (e.g. "09:31"). Used as the
+    position's entry_time so T+45 / T+90 timing math is anchored to the signal,
+    not wall-clock. Falls back to wall clock if not provided."""
+    bar_time = signal_time or datetime.now().strftime("%H:%M")
+    print(f"[entry] {ticker} {signal} {rating} @ ${entry_price:.2f}  size=${dollars:.2f}  (bar {bar_time})")
 
     # 1. Market buy
     try:
@@ -250,7 +255,7 @@ def place_entry(ticker: str, signal: str, rating: str, entry_price: float,
         "ticker":       ticker,
         "signal":       signal,
         "rating":       rating,
-        "entry_time":   datetime.now().strftime("%H:%M"),
+        "entry_time":   bar_time,
         "entry_price":  actual_entry,
         "qty":          qty,
         "stop_price":   stop_price,
@@ -266,16 +271,26 @@ def place_entry(ticker: str, signal: str, rating: str, entry_price: float,
 
 
 def check_for_signals(client, ticker_data: dict, spy_by_time: dict,
-                      prior_closes: dict, atr_modifier: dict):
-    """For each ticker without an open position, run signal detection."""
+                      prior_closes: dict, atr_modifier: dict,
+                      prior_avg_vols: dict | None = None):
+    """For each ticker without an open position, run signal detection.
+
+    prior_avg_vols: per-ticker estimate of "normal" per-minute volume (typically
+    derived from yesterday's daily volume / 390). Passed as avg_vol_override to
+    find_all_trades so GAP_GO scoring isn't biased by the tiny in-session sample
+    during the first 10 minutes. Critical for catching morning gap entries."""
     if state["halted"]:
         return
+
+    prior_avg_vols = prior_avg_vols or {}
 
     for ticker in ex1.TICKERS:
         if already_in(ticker):
             continue
         td = ticker_data.get(ticker)
-        if td is None or len(td["closes"]) < ex1.ORB_BARS:
+        # GAP_GO can fire from bar 1; ORB needs ORB_BARS+1. So we only require
+        # at least one bar — find_all_trades handles the per-signal length check.
+        if td is None or len(td["closes"]) < 1:
             continue
 
         prior_close = prior_closes.get(ticker)
@@ -288,6 +303,7 @@ def check_for_signals(client, ticker_data: dict, spy_by_time: dict,
         trades = ex1.find_all_trades(
             td["closes"], td["highs"], td["lows"], td["volumes"], td["times"],
             skip_orb=skip_orb, spy_by_time=spy_by_time, gap_pct=gap_pct, ticker=ticker,
+            avg_vol_override=prior_avg_vols.get(ticker),
         )
         if not trades:
             continue
@@ -308,7 +324,8 @@ def check_for_signals(client, ticker_data: dict, spy_by_time: dict,
             print(f"[entry] {ticker} skipped — need ${dollars:.2f} but only ${bp:.2f} available")
             continue
 
-        place_entry(ticker, entry["signal"], entry["rating"], entry["price"], dollars)
+        place_entry(ticker, entry["signal"], entry["rating"], entry["price"], dollars,
+                    signal_time=entry["time"])
 
 
 # ── Exit logic ────────────────────────────────────────────────────────────────
@@ -327,7 +344,7 @@ def _bars_since_entry(td: dict, entry_time: str) -> tuple[list, list]:
 
 def evaluate_position_exit(pos: dict, td: dict) -> Optional[dict]:
     """Run the full custom-exit ladder against a position's bars.
-    Returns {"reason": str, "price": float} on trigger, or None.
+    Returns {"reason": str, "price": float, "time": str} on trigger, or None.
 
     Native stop and TP are handled by the broker, so we don't check those here.
     What we DO check (in priority order, matching ex1.find_exit):
@@ -369,11 +386,11 @@ def evaluate_position_exit(pos: dict, td: dict) -> Optional[dict]:
 
     # 1. 14:00 time close
     if latest_time >= ex1.ENTRY_CLOSE:
-        return {"reason": "TIME_CLOSE", "price": latest_price}
+        return {"reason": "TIME_CLOSE", "price": latest_price, "time": latest_time}
 
     # 2. Trailing stop (only if armed)
     if trail_armed and latest_price <= peak * (1 - ex1.TRAIL_STOP):
-        return {"reason": "TRAILING_STOP", "price": latest_price}
+        return {"reason": "TRAILING_STOP", "price": latest_price, "time": latest_time}
 
     # 3. NO_PROGRESS at T+90 (if 14:00 hasn't already arrived)
     entry_mins  = int(pos["entry_time"][:2]) * 60 + int(pos["entry_time"][3:])
@@ -381,7 +398,7 @@ def evaluate_position_exit(pos: dict, td: dict) -> Optional[dict]:
     age_mins    = latest_mins - entry_mins
     if age_mins >= ex1.NO_PROGRESS_MINS and latest_mins <= 14 * 60:
         if latest_price <= entry_price:
-            return {"reason": "NO_PROGRESS", "price": latest_price}
+            return {"reason": "NO_PROGRESS", "price": latest_price, "time": latest_time}
 
     # 4. EARLY_WEAK at T+45 (skipping TSLA / PLTR per production rule)
     if ticker not in ex1.EARLY_WEAK_SKIP and age_mins >= ex1.EARLY_WEAK_MINS:
@@ -392,18 +409,24 @@ def evaluate_position_exit(pos: dict, td: dict) -> Optional[dict]:
             lookback_idx      = max(entry_idx_in_full + 1, latest_idx - ex1.EARLY_WEAK_LOOKBACK)
             if lookback_idx < latest_idx:
                 if latest_price < td["closes"][lookback_idx]:
-                    return {"reason": "EARLY_WEAK", "price": latest_price}
+                    return {"reason": "EARLY_WEAK", "price": latest_price, "time": latest_time}
 
     return None
 
 
-def execute_exit(ticker: str, reason: str, expected_price: float):
+def execute_exit(ticker: str, reason: str, expected_price: float,
+                 bar_time: str | None = None):
     """Cancel any open broker orders for the ticker, place market sell,
     update state, log, and alert. Always runs even if some sub-steps fail —
-    the goal is to FLATTEN the position safely."""
+    the goal is to FLATTEN the position safely.
+
+    bar_time: the bar time when the exit triggered (e.g. "14:00"). Used as
+    the trade record's exit_time so logs/comparisons are bar-aligned. Falls
+    back to wall clock if not provided."""
     pos = state["open_positions"].get(ticker)
     if pos is None:
         return
+    exit_time = bar_time or datetime.now().strftime("%H:%M")
 
     # 1. Cancel any pending stop / TP orders for this ticker
     try:
@@ -451,7 +474,7 @@ def execute_exit(ticker: str, reason: str, expected_price: float):
         "signal":      pos["signal"],
         "rating":      pos["rating"],
         "entry_time":  pos["entry_time"],
-        "exit_time":   datetime.now().strftime("%H:%M"),
+        "exit_time":   exit_time,
         "entry_price": pos["entry_price"],
         "exit_price":  fill_price,
         "qty":         pos["qty"],
@@ -479,12 +502,13 @@ def check_exits(ticker_data: dict):
     for ticker in list(state["open_positions"].keys()):
         pos = state["open_positions"][ticker]
         td  = ticker_data.get(ticker)
+        latest_bar_time = td["times"][-1] if td and td.get("times") else None
 
         # If broker shows position gone, the native stop or TP filled.
         # Reconcile: pull recent fills, log it, remove from state.
         broker_pos = broker.position(ticker)
         if broker_pos is None or broker_pos.qty == 0:
-            _reconcile_broker_closed(ticker)
+            _reconcile_broker_closed(ticker, bar_time=latest_bar_time)
             continue
 
         if td is None:
@@ -493,18 +517,19 @@ def check_exits(ticker_data: dict):
         # Otherwise check our custom exits.
         result = evaluate_position_exit(pos, td)
         if result:
-            execute_exit(ticker, result["reason"], result["price"])
+            execute_exit(ticker, result["reason"], result["price"],
+                         bar_time=result.get("time"))
 
     # Persist any peak/trail_armed updates from evaluate_position_exit
     save_state()
 
 
-def _reconcile_broker_closed(ticker: str):
+def _reconcile_broker_closed(ticker: str, bar_time: str | None = None):
     """The broker filled our native stop or TP — figure out which, log + alert."""
     pos = state["open_positions"].pop(ticker, None)
     if pos is None:
         return
-
+    exit_time  = bar_time or datetime.now().strftime("%H:%M")
     fill_price = pos["entry_price"]
     reason     = "BROKER_FILL"
     try:
@@ -535,7 +560,7 @@ def _reconcile_broker_closed(ticker: str):
         "signal":      pos["signal"],
         "rating":      pos["rating"],
         "entry_time":  pos["entry_time"],
-        "exit_time":   datetime.now().strftime("%H:%M"),
+        "exit_time":   exit_time,
         "entry_price": pos["entry_price"],
         "exit_price":  fill_price,
         "qty":         pos["qty"],
@@ -581,7 +606,8 @@ def time_close_all():
     for ticker in list(state["open_positions"].keys()):
         pos = state["open_positions"][ticker]
         # Use latest known price as the expected_price; actual fill is read back
-        execute_exit(ticker, "TIME_CLOSE", pos.get("peak", pos["entry_price"]))
+        execute_exit(ticker, "TIME_CLOSE", pos.get("peak", pos["entry_price"]),
+                     bar_time=ex1.ENTRY_CLOSE)
 
 
 # ── Session boundaries ────────────────────────────────────────────────────────
@@ -655,6 +681,12 @@ def main():
     atr_modifier = _build_atr_modifier(data_client)
     print(f"[setup] ATR modifiers: {len(atr_modifier)} tickers")
 
+    # Per-ticker prior-day avg per-minute volume (no-lookahead estimate of
+    # "normal" volume). Used as avg_vol_override in find_all_trades so GAP_GO
+    # scoring is meaningful in the first 10 minutes of the session.
+    prior_avg_vols = _build_prior_avg_vols(data_client)
+    print(f"[setup] prior avg vols: {len(prior_avg_vols)} tickers")
+
     print(f"\n[loop] polling every {POLL_SECONDS}s. Press Ctrl-C to stop cleanly.")
     while True:
         try:
@@ -668,7 +700,7 @@ def main():
 
             if in_entry_window() and not state["halted"]:
                 check_for_signals(data_client, ticker_data, spy_by_time,
-                                  prior_closes, atr_modifier)
+                                  prior_closes, atr_modifier, prior_avg_vols)
 
             # Hard time-close at 14:00 — runs BEFORE check_exits so positions
             # still in state get force-closed instead of slipping past.
@@ -713,6 +745,30 @@ def main():
             print(f"[loop] EXCEPTION: {e}\n{tb}")
             alerts.error("loop exception", f"{e}\n\n{tb}")
             time.sleep(POLL_SECONDS)
+
+
+def _build_prior_avg_vols(client) -> dict:
+    """For each ticker, estimate "normal" per-minute volume from yesterday's
+    daily bar. Daily volume / 390 minutes ≈ average bar volume during a
+    regular session. Used as a no-lookahead avg_vol baseline so the GAP_GO
+    volume floor (1.0x) is meaningful in the first few minutes of the day."""
+    today    = datetime.now().strftime("%Y-%m-%d")
+    start_dt = datetime.strptime(today, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    out = {}
+    for t in ex1.TICKERS:
+        try:
+            bars = client.get_stock_bars(StockBarsRequest(
+                symbol_or_symbols=t, timeframe=TimeFrame.Day,
+                start=start_dt - timedelta(days=10), end=start_dt, feed="iex",
+            )).data.get(t, [])
+            if bars:
+                # Average across the prior 5 trading days (more stable than 1)
+                recent = bars[-5:]
+                avg_daily_vol = sum(b.volume for b in recent) / len(recent)
+                out[t] = avg_daily_vol / 390  # ~minutes per session
+        except Exception:
+            pass
+    return out
 
 
 def _build_atr_modifier(client) -> dict:

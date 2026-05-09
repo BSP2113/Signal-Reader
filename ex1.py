@@ -294,13 +294,20 @@ def _price_at(ticker, hhmm, ticker_data):
     return closes[0] if closes else 0.0
 
 
-def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_time=None, gap_pct=0.0, ticker=None):
-    """Return ORB or GAP_GO (entry, exit) pair for the day if signal fires."""
-    if len(closes) <= ORB_BARS:
+def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_time=None, gap_pct=0.0, ticker=None, avg_vol_override=None):
+    """Return ORB or GAP_GO (entry, exit) pair for the day if signal fires.
+
+    avg_vol_override: live runners pass a no-lookahead estimate (e.g. yesterday's
+    per-minute avg) so GAP_GO scoring isn't biased by the tiny in-session sample
+    available in the first 10 minutes. Simulator passes None → uses full-day
+    sample (which has implicit lookahead but is the historical baseline)."""
+    if not closes:
         return []
 
-    avg_vol  = sum(volumes) / len(volumes) if volumes else 1
-    orb_high = max(closes[:ORB_BARS])
+    if avg_vol_override is not None:
+        avg_vol = avg_vol_override
+    else:
+        avg_vol = sum(volumes) / len(volumes) if volumes else 1
     day_open = closes[0]
 
     # Gap-and-go: positive gap >= 3%, scan first 10 min for close above opening bar's high
@@ -330,9 +337,10 @@ def find_all_trades(closes, highs, lows, volumes, times, skip_orb=False, spy_by_
                                          highs=highs, lows=lows, large_gap=large_gap, rating=rating))]
         return []
 
-    if skip_orb:
+    if skip_orb or len(closes) <= ORB_BARS:
         return []
 
+    orb_high = max(closes[:ORB_BARS])
     for i in range(ORB_BARS, len(closes)):
         if times[i] > ORB_CUTOFF:
             break
