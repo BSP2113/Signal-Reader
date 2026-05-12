@@ -577,6 +577,20 @@ PER_DAY_GROWTH = {
             "ASTS entered 09:46 on an ORB MAYBE with a +2.8% gap (a GAP_GO-quality setup) and exited just 13 minutes later via TRAILING_STOP for +$0.83 (+0.13%). The 2.0% trail activated after a +1% peak but fired before the trade could develop \u2014 a +2.8% gap with 1.6x volume should have more runway than 13 minutes. Three of today's winners (COIN, IONQ, TSLA) all hit full +3% TAKE_PROFIT, while ASTS got trailed out for a rounding error. The trail is too tight for high-gap MAYBE setups early in the session when volatility is elevated. Test: For entries before 10:00 on tickers with |gap| \u2265 2.0%, widen the trailing stop from 2.0% to 2.5% off peak, and require peak \u2265 +1.5% (not +1.0%) before the trail activates."
         )
     ],
+    "2026-05-12": [
+        (
+            "KOPN GAP_GO +23.8% gap exited next bar -$35.11",
+            "KOPN gapped a massive +23.8% and triggered GAP_GO TAKE at 09:38 with 5.8x volume \u2014 the strongest conviction signal of the day. It exited the very next bar at 09:39 via CONFIRM_BAR_EXIT for -$35.11 (-2.37%), the worst loss of the session. Extreme gap percentages (>15%) tend to be exhaustion moves rather than continuation, and entering on the first close above the opening bar high after a 23.8% gap means buying into a vertical move with no demand left. The 5.8x volume was likely climactic selling/profit-taking from gap holders, not fresh buying conviction. Test: in GAP_GO, if gap % is \u226515%, require a second confirmation bar (next bar must also close above entry bar's high) before entering, or SKIP entirely if gap \u226520%.</br></br>"
+        ),
+        (
+            "Three MAYBE ORB stops fired within 48 min for -$47.73",
+            "PLTR (MAYBE 1.9x, entry 09:45, stopped 10:33 -$18.03), AMD (MAYBE 2.4x, entry 09:46, stopped 09:57 -$15.87), and IONQ (MAYBE 2.4x, entry 09:46, stopped 09:47 -$13.83) all triggered as MAYBE ORBs within one minute of each other and all hit STOP_LOSS \u2014 IONQ in a single bar. Notably AMD gapped -2.1% and PLTR gapped -0.3%, meaning both fired ORB breakouts against negative or flat overnight tone in a NEUT market. In NEUT conditions, MAYBE-rated ORBs on tickers gapping down appear to be low-quality breakouts that quickly fail. Test: in NEUT markets, block MAYBE ORB entries on tickers with gap % \u2264 0% (negative or flat overnight gap), since the day above showed 0/3 such entries worked.</br></br>"
+        ),
+        (
+            "IONQ ORB MAYBE stopped out in 1 minute -$13.83",
+            "IONQ entered at 09:46 at $59.05 and stopped at 09:47 at $57.92 \u2014 a -1.91% move in a single 1-minute bar, exiting via STOP_LOSS instantly. This is a textbook false breakout: the ORB high was tagged, entry filled, and the next bar fully retraced through the stop with no opportunity for the trade to develop. A one-bar stop suggests the breakout bar itself was the high of the move (sweep + reversal). Requiring price to hold above the ORB high for one additional bar before entering would have skipped this trade entirely. Test: add a 1-bar confirmation gate to ORB entries \u2014 only enter on bar N+1 if bar N+1's low remains above the ORB high, otherwise cancel the signal for that ticker.</br></br>"
+        )
+    ],
 }
 
 # Links each per-day note to its improvement pool index (one entry per note in the list).
@@ -604,6 +618,7 @@ PER_DAY_GROWTH_IDX = {
     "2026-05-07": [None, None, None],
     "2026-05-08": [None, None, None],
     "2026-05-11": [None, None, None],
+    "2026-05-12": [None, None, None],
 }
 
 # Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
@@ -648,6 +663,20 @@ PER_DAY_GROWTH_EX2 = {
         (
             "ASTS triple-dip: original + re-entry + PM_ORB all on same ticker",
             "ASTS fired three separate signals today: ORB #1 (+$0.84 TRAILING_STOP), REENTRY #2 (+$7.07 TIME_CLOSE), and PM_ORB #3 (+$4.60 TIME_CLOSE) \u2014 three concurrent or overlapping positions in the same name totaling +$12.51. While the net was positive, ASTS #2 (entry 12:42) and ASTS #3 (entry 12:45) entered three minutes apart and exited at the exact same price/time \u2014 they were effectively the same trade taken twice, doubling ticker concentration risk for no diversification benefit. If ASTS had reversed into the close, we'd have stacked two losses on correlated entries. Test: when a re-entry and a PM_ORB on the same ticker would both fire within 15 minutes of each other, take only the higher-rated signal (TAKE over MAYBE; on ties, the earlier entry) and skip the second to prevent same-ticker stacking."
+        )
+    ],
+    "2026-05-12": [
+        (
+            "Zero EX2 extra signals fired despite four EX1 losers \u2014 re-entry gate too restrictive on STOP_LOSS clusters",
+            "All four EX1 trades exited as losses (KOPN CONFIRM_BAR_EXIT 09:39, IONQ STOP_LOSS 09:47, AMD STOP_LOSS 09:57, PLTR STOP_LOSS 10:33), yet zero re-entries fired. The current rule requires a fresh qualifying ORB signal post-exit, but after a same-day STOP_LOSS the ticker rarely reclaims its opening range cleanly enough to retrigger ORB before the 13:30 cutoff. On a 4-loss morning like today, the re-entry layer added literally nothing \u2014 EX2 only diverged from EX1 by -$1.40 (rounding from allocation timing). The re-entry concept assumes price recovers and breaks out again; on NEUT days with broad weakness, that recovery doesn't come. Test: require re-entry candidates to show a confirmed reversal signal (e.g., a 2-bar higher-high + higher-low pattern AND SPY relative strength > +0.2% in last 15 min) rather than a generic new ORB trigger, so re-entries only fire when conditions have genuinely shifted, not just when the clock allows."
+        ),
+        (
+            "PM_ORB silence on a -$84 morning suggests morning-high gate is correctly filtering, but worth verifying it wasn't too strict",
+            "EX2 lost $84.24 on the morning ORB layer with zero PM_ORB entries. Given the morning-high reference level (switched May 6 from noon range), no ticker closed above its 9:30-11:30 high in the 12:44-13:30 window \u2014 likely correct on a NEUT day with four morning stop-outs, since broad weakness usually keeps afternoon prices below morning highs. But we should confirm PM_ORB didn't *almost* fire \u2014 if any ticker came within 0.1% of its morning high without triggering, that's a near-miss worth logging. Today PM_ORB saved us from likely additional losses (a breakout into a weak tape rarely holds), so the silence is a feature, not a bug. Test: add a 'PM_ORB near-miss' log entry whenever a ticker closes within 0.25% of its morning high in the 12:44-13:30 window without triggering \u2014 track over 30 days whether near-misses tend to resolve up or down by 14:00, to validate the current threshold isn't leaving money on the table."
+        ),
+        (
+            "Afternoon breakout layer (13:00+ with 50x volume) also silent \u2014 confirm volume threshold isn't unreachable on normal days",
+            "Zero afternoon breakouts fired today, consistent with the pattern that the 50x morning-avg volume requirement is extremely rare. On a -$82 EX1 day, EX2's afternoon layer correctly avoided adding losses, but we have very few data points proving the 50x threshold ever fires \u2014 if it never triggers, it's dead code adding complexity without contribution. Today's silence isn't informative either way since SPY was weak and breakouts shouldn't fire anyway. Test: audit the last 45 trading days and count how many afternoon breakout signals fired total; if fewer than 3, lower the volume requirement to 25x morning avg AND require SPY > VWAP at signal time, so the layer actually contributes signals on strong-tape afternoons without flooding weak days with false positives."
         )
     ],
 }
