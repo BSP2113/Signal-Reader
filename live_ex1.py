@@ -39,7 +39,7 @@ from typing import Optional
 
 import pandas as pd
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
+from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
 from alpaca.data.timeframe import TimeFrame
 
 import ex1
@@ -54,6 +54,14 @@ TRADES_FILE = os.path.join(BASE_DIR, "trades_live.json")
 
 # How often to poll for new bars during the session (seconds).
 POLL_SECONDS = 30
+
+# Phase 1 — sub-bar exit polling. When True, open positions are checked for
+# trailing-stop and time-close triggers every EXIT_POLL_SECONDS via REST quote
+# snapshots, instead of waiting for the next 30s bar tick. Reduces give-back
+# on trail exits (each trail trigger can give back 0.3-0.5% in 30 seconds).
+# EARLY_WEAK and NO_PROGRESS are minute-checkpointed and stay on bar cadence.
+EXIT_POLL_REALTIME = True
+EXIT_POLL_SECONDS  = 2
 
 
 # ── State (in-memory; persisted to STATE_FILE on every change) ────────────────
@@ -162,6 +170,34 @@ def fetch_spy_intraday(client) -> dict:
     except Exception as e:
         print(f"[bars] SPY fetch failed: {e}")
     return spy_by_time
+
+
+def fetch_latest_quotes(client, tickers: list[str]) -> dict:
+    """Single batched REST snapshot for current bid/ask. Returns dict of
+    ticker → midpoint price. Used by realtime exit polling (Phase 1).
+
+    Falls back to ask, then bid, if midpoint can't be computed. Empty dict on
+    fetch failure — caller treats missing tickers as "no update this tick."
+    """
+    if not tickers:
+        return {}
+    out = {}
+    try:
+        quotes = client.get_stock_latest_quote(
+            StockLatestQuoteRequest(symbol_or_symbols=tickers, feed="iex")
+        )
+        for t, q in quotes.items():
+            bid = float(q.bid_price or 0)
+            ask = float(q.ask_price or 0)
+            if bid > 0 and ask > 0:
+                out[t] = round((bid + ask) / 2, 4)
+            elif ask > 0:
+                out[t] = round(ask, 4)
+            elif bid > 0:
+                out[t] = round(bid, 4)
+    except Exception as e:
+        print(f"[quotes] fetch failed: {e}")
+    return out
 
 
 def fetch_prior_close(client, ticker: str) -> Optional[float]:
@@ -361,8 +397,10 @@ def evaluate_position_exit(pos: dict, td: dict) -> Optional[dict]:
     ticker      = pos["ticker"]
     lock_level  = entry_price * (1 + ex1.TRAIL_LOCK)
 
-    # Recompute peak + trail-arm state from scratch (idempotent across restarts)
-    peak         = entry_price
+    # Recompute peak + trail-arm state. Seed peak with any prior value (which
+    # may include realtime sub-bar ticks above the latest bar close — we don't
+    # want to clobber those) and let bar closes lift it further.
+    peak         = max(entry_price, pos.get("peak", entry_price))
     consec_above = 0
     trail_armed  = False
     for i in range(1, len(closes)):
@@ -458,24 +496,32 @@ def execute_exit(ticker: str, reason: str, expected_price: float,
     except Exception:
         pass
 
-    # 4. Compute realized P&L
+    # 4. Compute realized P&L + give-back metric.
+    # give_back = (trigger_price - fill_price) * qty
+    #   positive → we lost $ to slippage between trigger detection and fill
+    #   negative → price moved in our favor between trigger and fill
+    # Used to decide whether the 1s exit polling upgrade is worth it
+    # (target: <$3/trade = no upgrade; $3-$10 = schedule; $10+ = priority).
     pnl_dollars = round((fill_price - pos["entry_price"]) * pos["qty"], 2)
     pnl_pct     = round((fill_price - pos["entry_price"]) / pos["entry_price"] * 100, 2)
+    give_back   = round((expected_price - fill_price) * pos["qty"], 2)
 
     # 5. Update state
     state["session_pnl"] = round(state["session_pnl"] + pnl_dollars, 2)
     state["completed_trades"].append({
-        "ticker":      ticker,
-        "signal":      pos["signal"],
-        "rating":      pos["rating"],
-        "entry_time":  pos["entry_time"],
-        "exit_time":   exit_time,
-        "entry_price": pos["entry_price"],
-        "exit_price":  fill_price,
-        "qty":         pos["qty"],
-        "exit_reason": reason,
-        "pnl":         pnl_dollars,
-        "pnl_pct":     pnl_pct,
+        "ticker":        ticker,
+        "signal":        pos["signal"],
+        "rating":        pos["rating"],
+        "entry_time":    pos["entry_time"],
+        "exit_time":     exit_time,
+        "entry_price":   pos["entry_price"],
+        "exit_price":    fill_price,
+        "trigger_price": expected_price,
+        "give_back":     give_back,
+        "qty":           pos["qty"],
+        "exit_reason":   reason,
+        "pnl":           pnl_dollars,
+        "pnl_pct":       pnl_pct,
     })
     state["open_positions"].pop(ticker, None)
 
@@ -516,6 +562,59 @@ def check_exits(ticker_data: dict):
                          bar_time=result.get("time"))
 
     # Persist any peak/trail_armed updates from evaluate_position_exit
+    save_state()
+
+
+def check_exits_realtime(data_client):
+    """Phase 1 sub-bar exit polling. Pulls a fresh REST quote snapshot for all
+    open tickers and checks the two exits that benefit from sub-bar reaction
+    time:
+      - TRAILING_STOP — only if trail_armed (arming still requires 2 bar
+        closes >= entry+1%, set on the minute cadence by evaluate_position_exit)
+      - TIME_CLOSE   — fires the second 14:00 lands instead of waiting for
+        the next 30s bar tick
+
+    EARLY_WEAK and NO_PROGRESS are NOT checked here — they trigger at minute
+    checkpoints and depend on bar-aligned data (close[i-5]).
+
+    The peak high-water mark is updated incrementally so 1s ticks above the
+    last bar close are captured. evaluate_position_exit takes max(bar_peak,
+    pos['peak']) so updates aren't lost across the two cadences.
+    """
+    if not state["open_positions"]:
+        return
+
+    tickers_open = list(state["open_positions"].keys())
+    quotes = fetch_latest_quotes(data_client, tickers_open)
+    if not quotes:
+        return
+
+    now = datetime.now()
+    now_minute = now.strftime("%H:%M")
+    time_close_active = now_minute >= ex1.ENTRY_CLOSE
+
+    for ticker in list(state["open_positions"].keys()):
+        pos = state["open_positions"].get(ticker)
+        if pos is None:
+            continue
+        price = quotes.get(ticker)
+        if not price:
+            continue
+
+        # Update peak with the new tick (max() so concurrent bar-cadence
+        # updates aren't clobbered)
+        pos["peak"] = max(pos.get("peak", pos["entry_price"]), price)
+
+        # 1. TIME_CLOSE — flat the position the second 14:00 hits
+        if time_close_active:
+            execute_exit(ticker, "TIME_CLOSE", price, bar_time=now_minute)
+            continue
+
+        # 2. TRAILING_STOP — only if armed by the minute cadence
+        if pos.get("trail_armed") and price <= pos["peak"] * (1 - ex1.TRAIL_STOP):
+            execute_exit(ticker, "TRAILING_STOP", price, bar_time=now_minute)
+            continue
+
     save_state()
 
 
@@ -677,7 +776,13 @@ def main():
     prior_avg_vols = _build_prior_avg_vols(data_client)
     print(f"[setup] prior avg vols: {len(prior_avg_vols)} tickers")
 
-    print(f"\n[loop] polling every {POLL_SECONDS}s. Press Ctrl-C to stop cleanly.")
+    if EXIT_POLL_REALTIME:
+        print(f"\n[loop] bar cadence={POLL_SECONDS}s, exit cadence={EXIT_POLL_SECONDS}s. "
+              f"Press Ctrl-C to stop cleanly.")
+    else:
+        print(f"\n[loop] polling every {POLL_SECONDS}s. Press Ctrl-C to stop cleanly.")
+
+    last_bar_tick = 0.0  # epoch seconds of last minute-cadence work
     while True:
         try:
             if not market_open_now():
@@ -685,46 +790,62 @@ def main():
                 time.sleep(60)
                 continue
 
-            ticker_data = fetch_today_bars(data_client, ex1.TICKERS)
-            spy_by_time = fetch_spy_intraday(data_client)
+            now_epoch = time.time()
+            do_bar_work = (now_epoch - last_bar_tick) >= POLL_SECONDS
 
-            if in_entry_window() and not state["halted"]:
-                check_for_signals(data_client, ticker_data, spy_by_time,
-                                  prior_closes, atr_modifier, prior_avg_vols)
+            if do_bar_work:
+                ticker_data = fetch_today_bars(data_client, ex1.TICKERS)
+                spy_by_time = fetch_spy_intraday(data_client)
 
-            # Hard time-close at 14:00 — runs BEFORE check_exits so positions
-            # still in state get force-closed instead of slipping past.
-            now = datetime.now()
-            if (now.hour, now.minute) >= tuple(int(x) for x in ex1.ENTRY_CLOSE.split(":")):
-                time_close_all()
+                if in_entry_window() and not state["halted"]:
+                    check_for_signals(data_client, ticker_data, spy_by_time,
+                                      prior_closes, atr_modifier, prior_avg_vols)
 
-            check_exits(ticker_data)
+                # Hard time-close at 14:00 — runs BEFORE check_exits so positions
+                # still in state get force-closed instead of slipping past.
+                now = datetime.now()
+                if (now.hour, now.minute) >= tuple(int(x) for x in ex1.ENTRY_CLOSE.split(":")):
+                    time_close_all()
 
-            # End-of-session summary at 14:05+ when nothing is open
-            if (now.hour, now.minute) >= (14, 5) and not state["open_positions"]:
-                if not state.get("session_closed_alerted"):
-                    n_trades = len(state["completed_trades"])
-                    n_wins   = sum(1 for t in state["completed_trades"] if t["pnl"] > 0)
-                    end_cash = broker.settled_cash()
-                    alerts.session_close(state["session_pnl"], n_trades, n_wins, end_cash)
-                    state["session_closed_alerted"] = True
-                    save_state()
-                    print(f"[session] CLOSE  pnl=${state['session_pnl']:+.2f}  "
-                          f"{n_trades} trades ({n_wins} wins)")
+                check_exits(ticker_data)
 
-                # Self-terminate after 14:30 so cron can run reconciliation cleanly.
-                # By then time-close has fired, all positions are flat, alert is sent.
-                if (now.hour, now.minute) >= (14, 30):
-                    print("[loop] EOD complete — exiting cleanly for reconciliation")
-                    return
+                # End-of-session summary at 14:05+ when nothing is open
+                if (now.hour, now.minute) >= (14, 5) and not state["open_positions"]:
+                    if not state.get("session_closed_alerted"):
+                        n_trades = len(state["completed_trades"])
+                        n_wins   = sum(1 for t in state["completed_trades"] if t["pnl"] > 0)
+                        end_cash = broker.settled_cash()
+                        alerts.session_close(state["session_pnl"], n_trades, n_wins, end_cash)
+                        state["session_closed_alerted"] = True
+                        save_state()
+                        print(f"[session] CLOSE  pnl=${state['session_pnl']:+.2f}  "
+                              f"{n_trades} trades ({n_wins} wins)")
 
-            # Heartbeat
-            now_str = datetime.now().strftime("%H:%M:%S")
-            n_open  = len(state["open_positions"])
-            halt    = " [HALTED]" if state["halted"] else ""
-            print(f"[loop] {now_str}  open={n_open}  pnl=${state['session_pnl']:+.2f}{halt}")
+                    # Self-terminate after 14:30 so cron can run reconciliation cleanly.
+                    # By then time-close has fired, all positions are flat, alert is sent.
+                    if (now.hour, now.minute) >= (14, 30):
+                        print("[loop] EOD complete — exiting cleanly for reconciliation")
+                        return
 
-            time.sleep(POLL_SECONDS)
+                # Heartbeat (bar cadence only — sub-bar would be too noisy)
+                now_str = datetime.now().strftime("%H:%M:%S")
+                n_open  = len(state["open_positions"])
+                halt    = " [HALTED]" if state["halted"] else ""
+                print(f"[loop] {now_str}  open={n_open}  pnl=${state['session_pnl']:+.2f}{halt}")
+
+                last_bar_tick = now_epoch
+
+            # Sub-bar exit polling (Phase 1). Cheap REST snapshot only when
+            # positions are open. Trail/time-close fire here without waiting
+            # for the next 30s bar tick.
+            if EXIT_POLL_REALTIME and state["open_positions"] and not state["halted"]:
+                check_exits_realtime(data_client)
+                time.sleep(EXIT_POLL_SECONDS)
+            else:
+                # No open positions (or realtime disabled): sleep until the
+                # next bar tick is due, capped at POLL_SECONDS.
+                remaining = POLL_SECONDS - (time.time() - last_bar_tick)
+                time.sleep(max(1.0, min(POLL_SECONDS, remaining)))
 
         except KeyboardInterrupt:
             print("\n[loop] interrupted — saving state, exiting cleanly")

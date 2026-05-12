@@ -1,10 +1,10 @@
 {
-  "date": "2026-05-06",
-  "state": "bullish",
-  "spy_prev_close": 723.71,
-  "spy_premarket": 728.67,
-  "vixy_level": 27.66,
-  "spy_gap_pct": 0.685,
-  "vixy_trend_pct": -0.198,
-  "generated": "2026-05-06 22:18:17"
+  "date": "2026-05-11",
+  "state": "neutral",
+  "spy_prev_close": 737.54,
+  "spy_premarket": 736.16,
+  "vixy_level": 27.05,
+  "spy_gap_pct": -0.187,
+  "vixy_trend_pct": 0.483,
+  "generated": "2026-05-11 09:20:02"
 }
