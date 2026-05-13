@@ -587,6 +587,20 @@ PER_DAY_GROWTH = {
             "IONQ entered at 09:46 at $59.05 and stopped at 09:47 at $57.92 \u2014 a -1.91% move in a single 1-minute bar, exiting via STOP_LOSS instantly. This is a textbook false breakout: the ORB high was tagged, entry filled, and the next bar fully retraced through the stop with no opportunity for the trade to develop. A one-bar stop suggests the breakout bar itself was the high of the move (sweep + reversal). Requiring price to hold above the ORB high for one additional bar before entering would have skipped this trade entirely. Test: add a 1-bar confirmation gate to ORB entries \u2014 only enter on bar N+1 if bar N+1's low remains above the ORB high, otherwise cancel the signal for that ticker.</br></br>"
         )
     ],
+    "2026-05-13": [
+        (
+            "TIME_CLOSE capped 4 winners between +1.68% and +2.03% on a green day",
+            "META (+2.03%, +$27.00), TSLA (+1.68%, +$22.37), ARM (+1.88%, +$12.21), and DKNG (+1.98%, +$24.95) all exited at 14:00 TIME_CLOSE well short of the +3% take profit. None tripped the 2.0% trailing stop because their peak-to-exit drawdown stayed shallow \u2014 they were still trending into the close. On a NEUT day where every single ORB winner was still in an uptrend at 14:00, the time-close cut roughly $30\u201360 of upside per name. Test: when an open position is at >+1.5% gain AND making a new session high within the final 15 minutes (13:45\u201314:00), defer the TIME_CLOSE and convert to trail-only mode until 14:30."
+        ),
+        (
+            "META PM_ORB at 12:57 had 63 minutes of runway and entered $0.10 below where it died",
+            "META PM_ORB fired at $615.05 at 12:57 and exited TIME_CLOSE at 14:00 for +$0.22 (+0.02%). The entry was essentially at the same price as the morning META ORB's 14:00 exit ($615.15) \u2014 the PM_ORB triggered right at the top of the morning range with no daylight above to run into, and only 63 minutes before the hard time close. With ATR-scaled targets needing room to breathe, a PM_ORB entry this late is structurally doomed. Test: block PM_ORB entries after 12:45 unless the breakout closes \u22650.30% above the morning session high (proving real expansion, not a retest at the top)."
+        ),
+        (
+            "ASTS was the only TAKE_PROFIT \u2014 +3% target is rarely reached, trailing stop never armed on 4 winners",
+            "ASTS hit TAKE_PROFIT at $77.58 (+3.40%, +$21.27) \u2014 the only one of 6 trades to do so. The 2.0% trail-from-peak (which only arms after +1% peak) never triggered on META, TSLA, ARM, or DKNG even though all four peaked above +1%; their pullbacks from peak stayed under 2% so the trail stayed dormant while TIME_CLOSE swept them at lower prices than their intraday highs. The current trail is too loose to lock anything in on slow grinders. Test: once peak gain exceeds +2.0%, tighten the trailing stop from 2.0% to 1.0% from peak \u2014 locks in roughly half the gain on grinders like today instead of letting it bleed back to the close price."
+        )
+    ],
 }
 
 # Links each per-day note to its improvement pool index (one entry per note in the list).
@@ -615,6 +629,7 @@ PER_DAY_GROWTH_IDX = {
     "2026-05-08": [None, None, None],
     "2026-05-11": [None, None, None],
     "2026-05-12": [None, None],             # note 2 (MAYBE ORB cluster) graduated to Shipped 74 and removed from list
+    "2026-05-13": [None, None, None],
 }
 
 # Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
@@ -673,6 +688,20 @@ PER_DAY_GROWTH_EX2 = {
         (
             "Afternoon breakout layer (13:00+ with 50x volume) also silent \u2014 confirm volume threshold isn't unreachable on normal days",
             "Zero afternoon breakouts fired today, consistent with the pattern that the 50x morning-avg volume requirement is extremely rare. On a -$82 EX1 day, EX2's afternoon layer correctly avoided adding losses, but we have very few data points proving the 50x threshold ever fires \u2014 if it never triggers, it's dead code adding complexity without contribution. Today's silence isn't informative either way since SPY was weak and breakouts shouldn't fire anyway. Test: audit the last 45 trading days and count how many afternoon breakout signals fired total; if fewer than 3, lower the volume requirement to 25x morning avg AND require SPY > VWAP at signal time, so the layer actually contributes signals on strong-tape afternoons without flooding weak days with false positives."
+        )
+    ],
+    "2026-05-13": [
+        (
+            "PM_ORB DKNG MAYBE +0.80% \u2014 small win but 75min hold for $10.39",
+            "DKNG PM_ORB fired at 12:45 with 1.8x volume (MAYBE rating) and entered at $25.07, exiting at $25.27 on TIME_CLOSE for +$10.39 (+0.80%). DKNG already had an EX1 ORB position open from 10:30 at $24.78 that was still running and exited at the same 14:00 close for +$25.76. The PM_ORB essentially doubled DKNG exposure for the final 75 minutes \u2014 small win but the entry was only $0.29 above the original ORB entry, meaning PM_ORB was buying near the same level EX1 already owned. This is capital-inefficient: same ticker, same direction, marginally higher cost basis. Test: when PM_ORB fires on a ticker that already has an open EX1 morning position, skip the PM_ORB entry unless the PM entry price is at least +1.0% above the morning entry (confirming genuine breakout extension, not just sideways grind)."
+        ),
+        (
+            "Zero re-entries on a 5-for-5 winning day \u2014 re-entry layer dormant when not needed",
+            "All five EX1 base trades (META, TSLA, ARM, ASTS, DKNG) were winners, with four hitting TIME_CLOSE at +1.68% to +2.03% and ASTS hitting TAKE_PROFIT at +3.40%. Zero STOP_LOSS or TRAILING_STOP exits means the re-entry layer had nothing to trigger on \u2014 by design, re-entries only fire after a stop-out. This is the expected behavior on clean trend days, but it confirms re-entries are a downside-recovery mechanism, not an upside-amplifier. On 5-for-5 days like today, EX2's edge comes entirely from PM_ORB and afternoon breakouts. Test: tag each day in exercises.json with `re_entry_eligible_count` (number of stop-outs before 13:30) so we can separate days where re-entries were available-but-skipped vs days where they couldn't fire at all \u2014 current 12-day re-entry net (-) may be skewed by low sample size of actually-eligible days."
+        ),
+        (
+            "PM_ORB only fired on DKNG despite 5 winning morning positions \u2014 filter too tight or window too narrow",
+            "Only one PM_ORB signal fired today (DKNG) despite META, TSLA, ARM, and ASTS all trending up strongly into the afternoon (META +2.03%, TSLA +1.68%, ARM +1.88%, ASTS +3.40% TAKE_PROFIT at 11:43). On a clean uptrend day, more tickers should have broken above their 9:30\u201311:30 morning highs in the 12:44\u201313:30 window. Either the morning highs were already broken before 12:44 (signal missed the move) or the 2.0x PM volume floor for TAKE blocked qualifying breakouts. ASTS in particular hit TAKE_PROFIT at 11:43 \u2014 meaning it was already +3.4% above entry before PM_ORB window even opened, so the morning high was set very high and PM extension was unlikely. Test: log PM_ORB `signal_state` per ticker per day (FIRED / NO_BREAKOUT / VOL_FAIL / ALREADY_BROKEN_PRE_1244) so we can diagnose whether the 12:44 window start is missing early-afternoon breakouts that occur 12:00\u201312:44."
         )
     ],
 }
