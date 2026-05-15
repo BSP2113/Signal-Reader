@@ -607,6 +607,20 @@ PER_DAY_GROWTH = {
             "Every ORB entry that fired after 10:10 was profitable: PLTR 10:11 \u2192 +$14.49 (TIME_CLOSE), DKNG 10:13 \u2192 +$6.71 (TIME_CLOSE), COIN 10:49 \u2192 +$30.37 (TAKE_PROFIT in 41 min). Combined: +$51.57. Every gap-down entry before 10:00 except SMCI lost. Even META at 09:52 (gap -0.1%, nearly flat) only managed -$0.35 at TIME_CLOSE. This suggests the 09:45 batch of breakouts on a NEUT/gap-down day are mostly noise, while later breakouts after the first hour represent genuine trend continuation. Test: On days where SPY is NEUT and SPY's first 15 minutes (09:30\u201309:45) close lower than open, delay ORB MAYBE eligibility window from 09:45 to 10:00 \u2014 TAKE remains eligible at 09:45 but MAYBE must wait."
         )
     ],
+    "2026-05-15": [
+        (
+            "SHOP +2.00% winner capped at $12.40 by BEAR 10% TAKE allocation",
+            "Today's lone EX1 trade, SHOP ORB (TAKE, 2.0x vol, +1.0% gap), entered 10:30 at $99.22 and exited 14:00 at $101.20 for a clean +2.00% \u2014 a textbook win. Yet it only netted $+12.40 because BEAR market caps TAKE allocation at 10%, sizing the position at roughly $620. The same signal in NEUT (45%) would have returned ~$56 and in BULL (50%) ~$62. The system correctly identified a high-conviction setup (2.0x volume, positive gap, clean breakout that ran 3.5 hours without stopping out) but the BEAR sizing rule treated it identically to a low-conviction BEAR trade, leaving ~$45 on the table on a confirmed winner. Test: in BEAR market, raise TAKE allocation from 10% to 20% when the signal has volume conviction \u22652.0x AND a positive gap \u2265+0.5%, keeping the 10% floor for all other BEAR TAKEs."
+        ),
+        (
+            "SHOP exited TIME_CLOSE at +2.00%, never reaching +3% TP target $102.20",
+            "SHOP closed via the 14:00 TIME_CLOSE exit at $101.20 (+2.00%), not via take-profit, trailing stop, or stop loss. Since the trailing stop (2.0% off peak, armed after +1%) never fired, price was at or near its session high of ~$101.20 when the 14:00 hard exit forced the sale \u2014 the move was still intact and only ~$1.00 (under 1%) away from the +3% TP at $102.20. A high-volume (2.0x) trade still trending up at the cutoff was terminated by a clock, not by weakness. The 14:00 hard exit may be systematically truncating the strongest, slowest-building winners. Test: for TAKE signals with \u22652.0x volume that are green and within 1.0% of the +3% TP target at 14:00, extend the hard time-close to 14:30 (keeping all stop/trail exits active) and measure incremental P&L versus forced 14:00 exits."
+        ),
+        (
+            "Only signal across 17 tickers in BEAR was a late 10:30 ORB \u2014 and it won",
+            "On a bearish day, exactly one ORB cleared the SPY relative-strength gate across all 17 tickers: SHOP, breaking out at 10:30 \u2014 roughly 46 minutes after the 9:30\u20139:44 opening range, well past a typical early ORB. Despite the late entry it had ample runway, climbing to +2.00% by 14:00. The single qualifying setup shared a precise profile: 2.0x volume, +1.0% gap, late but clean breakout. The selectivity of the BEAR + relative-strength filter produced one trade and it was a winner, suggesting the surviving-signal profile (high volume + positive gap) is itself predictive in BEAR conditions and that late ORB entries are not inherently low-runway. Test: in BEAR market, gate ORB/GAP_GO entries to require volume \u22651.5x AND gap \u2265+0.5%, and remove the No-Progress 90-minute exit for BEAR ORB entries that fire after 10:15 (SHOP's 10:30 entry would have hit the No-Progress check at 12:00), then backtest BEAR-day win rate and average P&L against the current ruleset."
+        )
+    ],
 }
 
 # Links each per-day note to its improvement pool index (one entry per note in the list).
@@ -637,6 +651,7 @@ PER_DAY_GROWTH_IDX = {
     "2026-05-12": [None],                   # note 2 (MAYBE ORB cluster) graduated to Shipped 74; note 2 (1-bar ORB confirm) → Not Pursuing 36 and removed from list
     "2026-05-13": [None, None, None],
     "2026-05-14": [None, None, None],
+    "2026-05-15": [None, None, None],
 }
 
 # Per-day Claude's Notes for Exercise 2 (re-entries, PM_ORB, afternoon signals)
@@ -723,6 +738,20 @@ PER_DAY_GROWTH_EX2 = {
         (
             "Afternoon breakout at 15:59 is a structural dead-end and should be blocked",
             "SHOP #2 fired as an AFTERNOON TAKE at 15:59 with a flagged 68.8x volume spike, entered at $97.42, and exited at $97.42 via EOD the same minute for $0.00 P&L. This is the second time an afternoon breakout has registered with zero runway \u2014 the signal fires within minutes of the 15:30/16:00 session boundary, meaning even a clean breakout has no time to develop into a real trade. The 68.8x volume reading is almost certainly closing-auction imbalance noise, not a tradeable momentum surge. EX2's afternoon layer added nothing here and risks adding losers when the closing-print bar happens to gap against us. Test: hard-block afternoon breakout entries after 15:15 \u2014 minimum 15 minutes of runway before the 15:30 EX2 time close \u2014 and require the volume spike to be confirmed across at least 2 consecutive bars to filter out closing-auction artifacts."
+        )
+    ],
+    "2026-05-15": [
+        (
+            "PM_ORB was 100% of EX2's edge on a bear day (5/5, +$45.57) \u2014 yet all were MAYBE-sized",
+            "On a BEARISH day where EX1 made only +$12.40, the entire EX2 advantage (+$45.62) came from PM_ORB: 5 entries, 5 winners, +$45.57. Re-entries and afternoon breakouts contributed nothing. Every PM_ORB fired with strong conviction volume \u2014 UPST 2.1x, META 3.0x, DELL 2.3x, SHOP 2.5x, PLTR 3.4x \u2014 and the highest-volume cluster still scored only MAYBE, so they were allocated at the reduced MAYBE size. The standout, UPST (2.1x vol, entry 12:48 $29.36), hit +3.17% TAKE_PROFIT in 32 minutes; had it been TAKE-sized the dollar contribution would have been materially larger. The pattern across 5/5 wins on a down day suggests high-volume PM_ORBs are being systematically under-sized by the MAYBE classification. Test: when a PM_ORB fires with volume \u2265 2.5x the PM-window average AND choppiness is low (\u2265 +1 choppiness point), promote it from MAYBE to TAKE allocation; backtest the dollar impact over the 45-day PM_ORB window before shipping."
+        ),
+        (
+            "SHOP held two concurrent positions \u2014 PM_ORB stacked on top of an open ORB for only +$2.29",
+            "SHOP #1 (ORB TAKE, entry 10:30 $99.22) was still open and did not exit until 14:00 TIME_CLOSE. At 13:19 SHOP #2 PM_ORB (MAYBE 2.5x vol, $100.83) fired and was taken anyway, leaving EX2 holding two simultaneous SHOP positions into the close. SHOP #2 added only +$2.29 (+0.37%) \u2014 the weakest of all five PM_ORBs \u2014 while doubling single-name exposure on a bearish day. The PM_ORB reference level (morning session high) was barely cleared by an already-extended name whose original breakout was hours old, so the second entry captured almost no fresh momentum and mostly added concentration risk for negligible reward. Test: block a PM_ORB entry on any ticker that already has an open base (ORB/GAP_GO) position from the same session; if the original position has exited, allow it, otherwise skip to avoid stacking correlated single-name risk for marginal gain."
+        ),
+        (
+            "Late PM_ORB entries got chopped at 14:00 \u2014 entry time predicted return almost perfectly",
+            "Four of five PM_ORBs exited via the 14:00 TIME_CLOSE, and return tracked entry time almost monotonically: UPST 12:48 \u2192 +3.17% (hit target, 32 min runway), DELL 13:16 \u2192 +1.57%, META 13:04 \u2192 +0.79%, SHOP #2 13:19 \u2192 +0.37%, PLTR 13:30 \u2192 +0.39%. The two latest entries (SHOP 13:19, PLTR exactly at the 13:30 window cutoff) had only 30\u201341 minutes before the hard 14:00 close and barely cleared breakeven, while DELL and META were still green and rising when the clock cut them off. The fixed 14:00 TIME_CLOSE, inherited from morning ORB, structurally compresses hold time for any PM_ORB entered after ~13:15 and likely leaves trend on the table on strong afternoons. Test: give PM_ORB entries a minimum hold of entry + 75 minutes, capped at a 15:30 hard close (matching the afternoon-breakout exit), instead of the shared 14:00 TIME_CLOSE; backtest net P&L vs. the current rule across the PM_ORB history, including down days, to confirm it doesn't just give back gains in chop."
         )
     ],
 }
@@ -1196,14 +1225,16 @@ def build_dashboard(assets):
                     f'<div class="ex-stat-meta">{n} days &nbsp;·&nbsp; {wins}W/{n-wins}L &nbsp;·&nbsp; {wr:.1f}% win{extra}</div>'
                     f'</div>')
 
-        ex2_matched = [ex2_by_date[d] for d in all_dates if d in ex2_by_date]
-        re_total = sum(t["pnl"] for e in ex2_matched for t in e["trades"] if t["trade_num"] == 2)
-        re_extra = f'<br><span class="ex-stat-re">↩ re-entries: ${re_total:+.2f}</span>' if ex2_matched else ""
+        # EX2 shows its own full record (like EX1/EX3). It must not be pinned to
+        # EX1's date spine — EX1 can have date gaps (PM_ORB-only days were removed
+        # from EX1 on 2026-05-15), which would otherwise under-count EX2's history.
+        re_total = sum(t["pnl"] for e in ex2_list for t in e["trades"] if t["trade_num"] == 2)
+        re_extra = f'<br><span class="ex-stat-re">↩ re-entries: ${re_total:+.2f}</span>' if ex2_list else ""
         ex3_list  = sorted(ex3_by_date.values(), key=lambda e: e["date"])
         ex3_extra = f'<br><span class="ex-stat-re">BULL→EX1 / NEUT·BEAR→EX2</span>' if ex3_list else ""
         comparison_strip = (f'<div class="ex-compare-strip">'
                             f'{stat_card("Exercise 1 — ORB", ex1_list, "#4f8ef7")}'
-                            f'{stat_card("Exercise 2 — Re-entry", ex2_matched, "#a78bfa", re_extra)}'
+                            f'{stat_card("Exercise 2 — Re-entry", ex2_list, "#a78bfa", re_extra)}'
                             f'{stat_card("Exercise 3 — Hybrid", ex3_list, "#34d399", ex3_extra)}'
                             f'</div>')
 
@@ -1727,6 +1758,15 @@ def build_dashboard(assets):
     # --- Improvements panel ---
     # Items removed from GROWTH_POOL but still shown on the board (keyed by archived index)
     ARCHIVED_ITEMS = {
+        76: {
+            "title":    "Block ORB MAYBE entries before 09:50 — immediate breakouts are coin-flips",
+            "date":     "May 15, 2026",
+            "original": "After PM_ORB was removed from EX1 (matching live cash-account behavior), EX1 "
+                        "per-trade win rate fell to 54.4% — below the 55% graduation bar. Bucket analysis "
+                        "showed ORB MAYBE entries before 09:50 (the immediate post-opening-range cohort) "
+                        "were 16W/24L, near-breakeven coin-flips netting ~$0. Proposed: skip ORB MAYBE "
+                        "entries with entry time before 09:50. ORB TAKE, GAP_GO, and EX2/EX3 unaffected.",
+        },
         75: {
             "title":    "Gap-conviction MAYBE filter — require |gap|≥1.0% OR vol≥4.0x for ORB MAYBE entries",
             "date":     "May 13, 2026",
@@ -2184,6 +2224,26 @@ def build_dashboard(assets):
     }
 
     GROWTH_RESOLUTIONS = {
+        76: {
+            "what":   "Block ORB MAYBE entries before 09:50 (ORB_MAYBE_EARLY_CUTOFF = '09:50' in ex1.py)",
+            "date":   "May 15, 2026",
+            "detail": "ex1.py run_ex1() skips any ORB-signal MAYBE-rated entry whose entry time is before "
+                      "09:50, logged as 'orb-maybe-early'. The gate fires right after the existing SPY-gap "
+                      "MAYBE skip (#74). ORB TAKE, GAP_GO, NO_PROGRESS and every exit are unchanged; "
+                      "EX2/EX3 untouched. Conceptually the MAYBE analog of the already-shipped pre-10:00 "
+                      "TAKE block (#68) — same 'early entries are noise' insight extended to MAYBE.",
+            "impact": "Full chronological re-run of all 23 EX1 days (Apr 13 – May 14, on the "
+                      "post-PM_ORB-removal record): EX1 +$919.90 → +$1,216.13 (+$296.23), per-trade win "
+                      "rate 54.4% → 62.7% — clears the 55% graduation gate with cushion. Trades 125 → 102 "
+                      "(dropped 23 early ORB-MAYBE: 16W/24L, near-breakeven). Worst day improved "
+                      "-$88.06 → -$75.55; avg win +$22 → +$25, avg loss ~flat. The first-order drop "
+                      "estimate predicted -$40; the real chronological re-run was +$296 because capital "
+                      "freed from the cut early entries flowed into better later entries (compounding/"
+                      "REALLOC). EX2/EX3 unchanged. A variant also relaxing NO_PROGRESS was tested and "
+                      "rejected (~$0 P&L, +2pts only, removes a documented protective rule on a 23-day "
+                      "sample). Note: this clears the win-rate criterion but EX1 is still at 23 logged "
+                      "days vs. the 30-day graduation minimum.",
+        },
         74: {
             "what":   "Block ORB MAYBE entries when SPY pre-market gap ≤ -0.3%",
             "date":   "May 12, 2026",
